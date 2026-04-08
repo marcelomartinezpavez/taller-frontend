@@ -2,10 +2,12 @@ import React, { useEffect, useState } from "react";
 import api from "../services/api";
 import {
   Paper, Typography, Box, TextField, Button,
-  Select, MenuItem, InputLabel, FormControl
+  Select, MenuItem, InputLabel, FormControl,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid
 } from "@mui/material";
 
 function RepuestoCRUD() {
+  const selectFieldSx = { "& .MuiOutlinedInput-root": { minHeight: 56 } };
   const [repuestos, setRepuestos] = useState([]);
   const [proveedores, setProveedores] = useState([]); // lista de proveedores
   const [formData, setFormData] = useState({
@@ -17,10 +19,12 @@ function RepuestoCRUD() {
     anio: "",
     rutProveedor: "",
     valor: "",
-    idEmpresa: "",
     habilitado: true
   });
   const [editMode, setEditMode] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     cargarRepuestos();
@@ -67,7 +71,6 @@ function RepuestoCRUD() {
       anio: rep.anio,
       rutProveedor: rep.rutProveedor,
       valor: rep.valor,
-      idEmpresa: rep.empresa?.id || "",
       habilitado: rep.habilitado
     });
     setEditMode(true);
@@ -89,69 +92,145 @@ function RepuestoCRUD() {
       anio: "",
       rutProveedor: "",
       valor: "",
-      idEmpresa: "",
       habilitado: true
     });
     setEditMode(false);
   };
 
+  const handleChangePage = (_, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const repuestosFiltrados = repuestos.filter((r) => {
+    const texto = `${r.nombre} ${r.codigo} ${r.marca} ${r.modelo} ${r.anio} ${r.rutProveedor} ${r.valor}`.toLowerCase();
+    return texto.includes(search.toLowerCase());
+  });
+
   return (
-    <Box sx={{ mt: 2 }}>
+    <Box sx={{ mt: 2, px: { xs: 1, sm: 2 }, maxWidth: 1400, mx: "auto" }}>
       <Typography variant="h5" gutterBottom>Gestión de Repuestos</Typography>
 
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <TextField label="Nombre" value={formData.nombre}
-          onChange={e => setFormData({ ...formData, nombre: e.target.value })} sx={{ mr: 2 }} />
-        <TextField label="Código" value={formData.codigo}
-          onChange={e => setFormData({ ...formData, codigo: e.target.value })} sx={{ mr: 2 }} />
-        <TextField label="Marca" value={formData.marca}
-          onChange={e => setFormData({ ...formData, marca: e.target.value })} sx={{ mr: 2 }} />
-        <TextField label="Modelo" value={formData.modelo}
-          onChange={e => setFormData({ ...formData, modelo: e.target.value })} sx={{ mr: 2 }} />
-        <TextField label="Año" value={formData.anio}
-          onChange={e => setFormData({ ...formData, anio: e.target.value })} sx={{ mr: 2 }} />
-
-        {/* Select para Rut Proveedor */}
-        <FormControl sx={{ mr: 2, minWidth: 200 }}>
-          <InputLabel>Proveedor</InputLabel>
-          <Select
-            value={formData.rutProveedor}
-            onChange={e => setFormData({ ...formData, rutProveedor: e.target.value })}
-          >
-            {proveedores.map(prov => (
-              <MenuItem key={prov.id} value={prov.rut}>
-                {prov.nombre} {prov.apellido} - {prov.rut}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <TextField label="Valor" type="number" value={formData.valor}
-          onChange={e => setFormData({ ...formData, valor: e.target.value })} sx={{ mr: 2 }} />
-        <TextField label="ID Empresa" value={formData.idEmpresa}
-          onChange={e => setFormData({ ...formData, idEmpresa: e.target.value })} sx={{ mr: 2 }} />
-
-        <Button variant="contained" color="primary" onClick={guardarRepuesto}>
-          {editMode ? "Actualizar Repuesto" : "Crear Repuesto"}
-        </Button>
-        {editMode && (
-          <Button variant="outlined" color="secondary" onClick={resetForm} sx={{ ml: 2 }}>
-            Cancelar
-          </Button>
-        )}
+      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 2, borderRadius: 2 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField fullWidth label="Nombre" value={formData.nombre}
+              onChange={e => setFormData({ ...formData, nombre: e.target.value })} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField fullWidth label="Código" value={formData.codigo}
+              onChange={e => setFormData({ ...formData, codigo: e.target.value })} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField fullWidth label="Marca" value={formData.marca}
+              onChange={e => setFormData({ ...formData, marca: e.target.value })} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField fullWidth label="Modelo" value={formData.modelo}
+              onChange={e => setFormData({ ...formData, modelo: e.target.value })} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField fullWidth label="Año" value={formData.anio}
+              onChange={e => setFormData({ ...formData, anio: e.target.value })} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField fullWidth label="Valor" type="number" value={formData.valor}
+              onChange={e => setFormData({ ...formData, valor: e.target.value })} />
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <FormControl fullWidth sx={selectFieldSx}>
+              <InputLabel shrink>Proveedor</InputLabel>
+              <Select
+                value={formData.rutProveedor}
+                label="Proveedor"
+                displayEmpty
+                onChange={e => setFormData({ ...formData, rutProveedor: e.target.value })}
+              >
+                <MenuItem value="" disabled>Selecciona un proveedor</MenuItem>
+                {proveedores.map(prov => (
+                  <MenuItem key={prov.id} value={prov.rut}>
+                    {prov.nombre} {prov.apellido} - {prov.rut}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12}>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <Button variant="contained" color="primary" onClick={guardarRepuesto}>
+                {editMode ? "Actualizar Repuesto" : "Crear Repuesto"}
+              </Button>
+              {editMode && (
+                <Button variant="outlined" color="secondary" onClick={resetForm}>
+                  Cancelar
+                </Button>
+              )}
+            </Box>
+          </Grid>
+        </Grid>
       </Paper>
 
-      <Paper sx={{ p: 2 }}>
+      <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2 }}>
         <Typography variant="h6">Lista de Repuestos</Typography>
-        <ul>
-          {repuestos.map(r => (
-            <li key={r.id}>
-              {r.nombre} - {r.codigo} - {r.marca} - {r.modelo} - {r.anio} - ${r.valor}
-              <Button size="small" onClick={() => editarRepuesto(r)} sx={{ ml: 2 }}>Editar</Button>
-              <Button size="small" color="error" onClick={() => eliminarRepuesto(r)} sx={{ ml: 1 }}>Eliminar</Button>
-            </li>
-          ))}
-        </ul>
+        <TextField
+          fullWidth
+          label="Buscar repuesto"
+          placeholder="Nombre, código, marca, modelo, año, proveedor o valor"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          sx={{ mt: 2 }}
+        />
+        <TableContainer component={Paper} sx={{ mt: 2, borderRadius: 2, overflowX: "auto" }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Nombre</TableCell>
+                <TableCell>Código</TableCell>
+                <TableCell>Marca</TableCell>
+                <TableCell>Modelo</TableCell>
+                <TableCell>Año</TableCell>
+                <TableCell>Proveedor (RUT)</TableCell>
+                <TableCell>Valor</TableCell>
+                <TableCell>Estado</TableCell>
+                <TableCell>Acciones</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {repuestosFiltrados
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{r.nombre}</TableCell>
+                  <TableCell>{r.codigo}</TableCell>
+                  <TableCell>{r.marca}</TableCell>
+                  <TableCell>{r.modelo}</TableCell>
+                  <TableCell>{r.anio}</TableCell>
+                  <TableCell>{r.rutProveedor}</TableCell>
+                  <TableCell>${r.valor}</TableCell>
+                  <TableCell>{r.habilitado ? "Activo" : "Inactivo"}</TableCell>
+                  <TableCell>
+                    <Button size="small" onClick={() => editarRepuesto(r)} sx={{ mr: 1 }} variant="outlined">Editar</Button>
+                    <Button size="small" color="error" onClick={() => eliminarRepuesto(r)} variant="contained">Eliminar</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <TablePagination
+          component="div"
+          count={repuestosFiltrados.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          labelRowsPerPage="Repuestos por página"
+        />
       </Paper>
     </Box>
   );
