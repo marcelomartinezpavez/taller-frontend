@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import api from "../services/api";
 import {Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Typography, Box, TextField, Button, TablePagination, Grid } from "@mui/material";
+import { validarRut, formatearRut } from "../utils/validar";
 
 function ClientesCRUD() {
   const [clientes, setClientes] = useState([]);
+  const [rutError, setRutError] = useState("");
   const [formData, setFormData] = useState({
     id: "",
     nombre: "",
@@ -33,6 +35,13 @@ function ClientesCRUD() {
   };
 
   const guardarCliente = () => {
+    const resultado = validarRut(formData.rut);
+    if (!resultado.valido) {
+      setRutError(resultado.mensaje);
+      return;
+    }
+    setRutError("");
+    
     if (editMode) {
       api.put("/clientes/update", formData)
         .then(() => {
@@ -86,6 +95,7 @@ function ClientesCRUD() {
       habilitado: true
     });
     setEditMode(false);
+    setRutError("");
   };
 
   const handleChangePage = (_, newPage) => {
@@ -129,7 +139,18 @@ function ClientesCRUD() {
               fullWidth
               label="RUT"
               value={formData.rut}
-              onChange={e => setFormData({ ...formData, rut: e.target.value })}
+              onChange={e => {
+                const valor = e.target.value;
+                setFormData({ ...formData, rut: valor });
+                if (valor.length >= 2) {
+                  const resultado = validarRut(valor);
+                  setRutError(resultado.valido ? "" : resultado.mensaje);
+                } else {
+                  setRutError("");
+                }
+              }}
+              error={!!rutError}
+              helperText={rutError}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={6}>
@@ -220,7 +241,7 @@ function ClientesCRUD() {
         <TableRow key={c.id}>
           <TableCell>{c.nombre}</TableCell>
           <TableCell>{c.apellido}</TableCell>
-          <TableCell>{c.rut}</TableCell>
+          <TableCell>{formatearRut(c.rut)}</TableCell>
           <TableCell>{c.direccion}</TableCell>
           <TableCell>{c.comuna}</TableCell>
           <TableCell>{c.ciudad}</TableCell>

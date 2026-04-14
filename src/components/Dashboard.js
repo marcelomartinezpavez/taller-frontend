@@ -40,79 +40,83 @@ function Dashboard() {
         Informacion
       </Typography>
       <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4 }}>
-        Panel de control y resumen financiero del taller
+        Panel de control y resumen financiero del taller para {nombreMesCapitalizado} {anioActual}
       </Typography>
 
-      <Grid container spacing={3} alignItems="stretch">
-        {/* Contadores Generales */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 4, height: '100%', borderTop: '4px solid #1976d2', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1.2 }}>Clientes Registrados</Typography>
-            <Typography variant="h2" sx={{ fontWeight: 800, mt: 1 }}>{clientes.length}</Typography>
-          </Paper>
-        </Grid>
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: '1fr 1fr',
+          md: '1fr 1fr 1fr'
+        },
+        gap: 3
+      }}>
+        {/* FILA 1: Estadísticas Generales */}
+        <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderTop: '4px solid #1976d2', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1.2 }}>Clientes Registrados</Typography>
+          <Typography variant="h2" sx={{ fontWeight: 800 }}>{clientes.length}</Typography>
+        </Paper>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 4, height: '100%', borderTop: '4px solid #388e3c', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1.2 }}>Vehículos Registrados</Typography>
-            <Typography variant="h2" sx={{ fontWeight: 800, mt: 1 }}>{vehiculos.length}</Typography>
-          </Paper>
-        </Grid>
+        <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderTop: '4px solid #388e3c', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1.2 }}>Vehículos Registrados</Typography>
+          <Typography variant="h2" sx={{ fontWeight: 800 }}>{vehiculos.length}</Typography>
+        </Paper>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 4, height: '100%', borderTop: '4px solid #ed6c02', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1.2 }}>Total de Órdenes</Typography>
-            <Typography variant="h2" sx={{ fontWeight: 800, mt: 1 }}>{ordenes.length}</Typography>
-          </Paper>
-        </Grid>
+        <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderTop: '4px solid #ed6c02', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 1.2 }}>Total de Órdenes</Typography>
+          <Typography variant="h2" sx={{ fontWeight: 800 }}>{ordenes.length}</Typography>
+        </Paper>
 
-        {/* Desglose Secundario */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: '100%', textAlign: 'center', borderRadius: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: '#fff' }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>Órdenes Abiertas</Typography>
-            <Typography variant="h5" sx={{ color: 'primary.main', fontWeight: 700, mt: 1 }}>{cantidadAbiertas}</Typography>
-          </Paper>
-        </Grid>
+        {/* FILA 2: Desglose Actual */}
+        <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', borderRadius: 4, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: '#fffde7' }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.8rem', mb: 1 }}>Órdenes Abiertas</Typography>
+          <Typography variant="h3" sx={{ color: 'primary.main', fontWeight: 800 }}>{cantidadAbiertas}</Typography>
+        </Paper>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: '100%', textAlign: 'center', borderRadius: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: '#f8fbfc' }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>Monto en Abiertas</Typography>
-            <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 700, mt: 1 }}>${fmt(montoAbiertas)}</Typography>
-          </Paper>
-        </Grid>
+        <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', borderRadius: 4, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: '#e0f2f1' }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.8rem', mb: 1 }}>Monto en OT Abiertas (Mes)</Typography>
+          <Typography variant="h3" sx={{ color: '#1565c0', fontWeight: 800 }}>${fmt(montoAbiertas)}</Typography>
+        </Paper>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: '100%', textAlign: 'center', borderRadius: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: '#e8f5e9' }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem' }}>Monto en Cerradas</Typography>
-            <Typography variant="h5" sx={{ color: 'success.main', fontWeight: 700, mt: 1 }}>${fmt(statsCerradas.totalValorOt)}</Typography>
-          </Paper>
-        </Grid>
+        <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', borderRadius: 4, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: '#e8f5e9' }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.8rem', mb: 1 }}>Monto en OT Cerradas (Mes)</Typography>
+          <Typography variant="h3" sx={{ color: 'success.main', fontWeight: 800 }}>${fmt(statsCerradas.totalValorOt)}</Typography>
+        </Paper>
 
-        {/* Sección Mensual */}
-        <Grid item xs={12}>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', mt: 4, mb: 1 }}>
-            Estadísticas de {nombreMesCapitalizado} {anioActual}
-          </Typography>
-        </Grid>
+        {/* FILA 3: Proyecciones y Metas Mensuales */}
+        <Paper sx={{
+          p: 3,
+          borderRadius: 4,
+          background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
+          color: 'white',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <Typography variant="subtitle2" sx={{ opacity: 0.9, fontWeight: 500, mb: 1 }}>Ordenes Cerradas</Typography>
+          <Typography variant="h3" sx={{ fontWeight: 900 }}>${fmt(statsCerradas.totalValorOt)}</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.8 }}>{statsCerradas.cantidadOrdenes} Ordenes Finalizadas en el mes</Typography>
+        </Paper>
 
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 4, borderRadius: 5, height: '100%', background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center', boxShadow: '0 8px 32px rgba(46, 125, 50, 0.25)' }}>
-            <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 500, mb: 2 }}>Ventas Cerradas</Typography>
-            <Typography variant="h2" sx={{ fontWeight: 900, mb: 2 }}>${fmt(statsCerradas.totalValorOt)}</Typography>
-            <Divider sx={{ bgcolor: 'rgba(255,255,255,0.2)', mb: 2 }} />
-            <Typography variant="h5" sx={{ fontWeight: 600 }}>{statsCerradas.cantidadOrdenes} Órdenes Finalizadas</Typography>
-          </Paper>
-        </Grid>
+        <Paper sx={{
+          p: 3,
+          borderRadius: 4,
+          background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
+          color: 'white',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <Typography variant="subtitle2" sx={{ opacity: 0.9, fontWeight: 500, mb: 1 }}>Total Ordenes</Typography>
+          <Typography variant="h3" sx={{ fontWeight: 900 }}>${fmt(statsMensual.totalValorOt)}</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.8 }}>{statsMensual.cantidadOrdenes} Ordenes del Mes</Typography>
+        </Paper>
 
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 4, borderRadius: 5, height: '100%', background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center', boxShadow: '0 8px 32px rgba(21, 101, 192, 0.25)' }}>
-            <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 500, mb: 2 }}>Total Proyectado (Abiertas + Cerradas)</Typography>
-            <Typography variant="h2" sx={{ fontWeight: 900, mb: 2 }}>${fmt(statsMensual.totalValorOt)}</Typography>
-            <Divider sx={{ bgcolor: 'rgba(255,255,255,0.2)', mb: 2 }} />
-            <Typography variant="h5" sx={{ fontWeight: 600 }}>{statsMensual.cantidadOrdenes} Órdenes del Mes</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
+
+      </Box>
     </Box>
   );
 }

@@ -7,6 +7,7 @@ import {
   TableHead, TableRow, TablePagination, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete, InputAdornment
 } from "@mui/material";
+import { formatearRut } from "../utils/validar";
 
 
 function VehiculosCRUD() {
@@ -269,7 +270,7 @@ function VehiculosCRUD() {
                     <TableCell>{v.patente}</TableCell>
                     <TableCell>{v.color}</TableCell>
                     <TableCell>{v.anio}</TableCell>
-                    <TableCell>{v.rutDueno}</TableCell>
+                    <TableCell>{formatearRut(v.rutDueno)}</TableCell>
                     <TableCell>
                       <Button
                         size="small"
