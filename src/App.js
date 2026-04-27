@@ -136,6 +136,7 @@ function AppRoutes() {
         <Route path="/repuestos" element={<ProtectedRoute><RepuestosCRUD /></ProtectedRoute>} />
         <Route path="/agenda" element={<ProtectedRoute><AgendaCRUD /></ProtectedRoute>} />
         <Route path="/reportes" element={<ProtectedRoute><ReportesReparaciones /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </>
   );

@@ -1,11 +1,23 @@
 import React, { useEffect, useState } from "react";
 import api from "../services/api";
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import {
   Paper, Typography, Box, TextField, Button,
   Select, MenuItem, InputLabel, FormControl,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid, Slider
 } from "@mui/material";
 import { validarRut, formatearRut } from "../utils/validar";
+
+const quillModules = {
+  toolbar: [
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+    [{ 'indent': '-1' }, { 'indent': '+1' }],
+    [{ 'color': [] }, { 'background': [] }],
+    ['clean']
+  ],
+};
 
 function OrdenTrabajoCRUD() {
   const selectFieldSx = { "& .MuiOutlinedInput-root": { minHeight: 56 } };
@@ -45,23 +57,23 @@ function OrdenTrabajoCRUD() {
     observaciones: "",
     nivelCombustible: 0,
     idEmpresa: "",
-    detalleRepuesto: [],
+    detalleRepuesto: null,
     repuestosOrden: [],
     trabajosTerceros: []
   });
   const [editMode, setEditMode] = useState(false);
   const [detalleTemp, setDetalleTemp] = useState({
     descripcion: "",
-    porcentajeRecargo: "",
     valor: "",
-    cantidad: "",
-    repuesto_id: ""
+    cantidad: 1,
+    total: 0
   });
   const [repuestoOrdenTemp, setRepuestoOrdenTemp] = useState({
     descripcion: "",
     porcentajeRecargo: "",
     valor: "",
     total: "",
+    cantidad: 1,
     prestadorServicio: ""
   });
   const [trabajoTerceroTemp, setTrabajoTerceroTemp] = useState({
@@ -77,12 +89,14 @@ function OrdenTrabajoCRUD() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
+
   useEffect(() => {
     cargarOrdenes();
     cargarClientes();
     cargarVehiculos();
     cargarRepuestos();
   }, []);
+
   useEffect(() => {
     if (formData.rutCliente) {
       api.get(`/vehiculos/cliente/${formData.rutCliente}`)
@@ -93,21 +107,37 @@ function OrdenTrabajoCRUD() {
 
   useEffect(() => {
     setFormData(prev => {
-      const totalRepuestos = (prev.detalleRepuesto || []).reduce((acc, d) => acc + Number(d.total || 0), 0);
+      const totalDetalle = prev.detalleRepuesto ? Number(prev.detalleRepuesto.total || 0) : 0;
       const totalGenerales = (prev.repuestosOrden || []).reduce((acc, d) => acc + Number(d.total || 0), 0);
       const totalTerceros = (prev.trabajosTerceros || []).reduce((acc, d) => acc + Number(d.totalTercero || 0), 0);
-      const nuevoTotal = totalRepuestos + totalGenerales + totalTerceros;
+      const nuevoTotal = totalDetalle + totalGenerales + totalTerceros;
       if (prev.valorOt === nuevoTotal) return prev;
       return { ...prev, valorOt: nuevoTotal };
     });
   }, [formData.detalleRepuesto, formData.repuestosOrden, formData.trabajosTerceros]);
 
   useEffect(() => {
-    const base = Number(detalleTemp.cantidad) * Number(detalleTemp.valor);
-    const recargo = (Number(detalleTemp.porcentajeRecargo) * base) / 100;
-    const totalDetalle = base + recargo;
+    const totalDetalle = Number(detalleTemp.cantidad || 0) * Number(detalleTemp.valor || 0);
     setDetalleTemp(prev => ({ ...prev, total: totalDetalle }));
-  }, [detalleTemp.cantidad, detalleTemp.valor, detalleTemp.porcentajeRecargo]);
+  }, [detalleTemp.cantidad, detalleTemp.valor]);
+
+  useEffect(() => {
+    const base = Number(repuestoOrdenTemp.valor || 0) * Number(repuestoOrdenTemp.cantidad || 1);
+    const recargo = (Number(repuestoOrdenTemp.porcentajeRecargo || 0) * base) / 100;
+    const totalResult = base + recargo;
+    if (repuestoOrdenTemp.total !== totalResult) {
+       setRepuestoOrdenTemp(prev => ({ ...prev, total: totalResult }));
+    }
+  }, [repuestoOrdenTemp.valor, repuestoOrdenTemp.porcentajeRecargo, repuestoOrdenTemp.cantidad]);
+
+  useEffect(() => {
+    const base = Number(trabajoTerceroTemp.valorTercero || 0);
+    const recargo = (Number(trabajoTerceroTemp.porcentajeRecargoTercero || 0) * base) / 100;
+    const totalResult = base + recargo;
+    if (trabajoTerceroTemp.totalTercero !== totalResult) {
+      setTrabajoTerceroTemp(prev => ({ ...prev, totalTercero: totalResult }));
+    }
+  }, [trabajoTerceroTemp.valorTercero, trabajoTerceroTemp.porcentajeRecargoTercero]);
 
   const cargarOrdenes = () => {
     api.get("/ordenTrabajo/all")
@@ -134,15 +164,22 @@ function OrdenTrabajoCRUD() {
   };
 
   const guardarOrden = () => {
+    const payload = {
+      ...formData,
+      detalleRepuesto: formData.detalleRepuesto,
+      repuestosOrden: formData.repuestosOrden || [],
+      trabajosTerceros: formData.trabajosTerceros || []
+    };
+    
     if (editMode) {
-      api.put("/ordenTrabajo/update", formData)
+      api.put("/ordenTrabajo/update", payload)
         .then(() => {
           cargarOrdenes();
           resetForm();
         })
         .catch(err => console.error(err));
     } else {
-      api.post("/ordenTrabajo/insert", formData)
+      api.post("/ordenTrabajo/insert", payload)
         .then(() => {
           cargarOrdenes();
           resetForm();
@@ -151,28 +188,20 @@ function OrdenTrabajoCRUD() {
     }
   };
 
-  const normalizarOrdenParaEdicion = (orden) => {
-    const detallesRaw =
-      orden.detalleRepuestos ||
-      orden.detalleRepuestosDtos ||
-      orden.detalleRepuesto ||
-      orden.detalleRepuestoList ||
-      orden.detalle ||
-      orden.detalles ||
-      [];
+   const normalizarOrdenParaEdicion = (orden) => {
+    const dr = orden.detalleRepuesto || orden.detalleRepuestos || null;
+    const detalleRepuesto = dr ? {
+      id: dr.id,
+      descripcion: dr.descripcion || "",
+      valor: dr.valor || 0,
+      cantidad: dr.cantidad || 1,
+      total: dr.total || 0
+    } : null;
+
     const repuestosOrdenRaw = orden.repuestosOrden || orden.trabajosGenerales || orden.trabajoGeneral || orden.trabajosGeneral || [];
     const trabajosTercerosRaw = orden.trabajosTerceros || orden.trabajoTercero || orden.trabajosTercero || [];
 
-    const detalles = detallesRaw.map(d => ({
-      descripcion: d.descripcion || d.descripcionDetalle || d.nombre || "",
-      porcentajeRecargo: d.porcentajeRecargo || d.recargo || d.porcentaje || "",
-      valor: d.valor || d.valorDetalle || d.precio || "",
-      cantidad: d.cantidad || d.cantidadDetalle || 1,
-      total: d.total || d.montoTotal || d.subtotal || "",
-      repuesto_id: d.repuesto_id || d.repuestoId || d.idRepuesto || d.repuesto?.id || ""
-    }));
-
-    const repuestosOrden = repuestosOrdenRaw.map(ro => ({
+    const repuestosOrden = (Array.isArray(repuestosOrdenRaw) ? repuestosOrdenRaw : []).map(ro => ({
       descripcion: ro.descripcion || ro.descripcionGeneral || ro.descripcion || "",
       porcentajeRecargo: ro.porcentajeRecargo || ro.porcentajeRecargoGeneral || ro.porcentajeRecargo || "",
       valor: ro.valor || ro.valorGeneral || ro.valor || ro.monto || "",
@@ -181,7 +210,7 @@ function OrdenTrabajoCRUD() {
       prestadorServicio: ro.prestadorServicio || ro.prestadorServicioGeneral || ro.prestadorServicio || ""
     }));
 
-    const trabajosTerceros = trabajosTercerosRaw.map(tt => ({
+    const trabajosTerceros = (Array.isArray(trabajosTercerosRaw) ? trabajosTercerosRaw : []).map(tt => ({
       descripcionTercero: tt.descripcionTercero || tt.descripcion || "",
       porcentajeRecargoTercero: tt.porcentajeRecargoTercero || tt.porcentajeRecargo || "",
       valorTercero: tt.valorTercero || tt.valor || tt.monto || "",
@@ -203,20 +232,17 @@ function OrdenTrabajoCRUD() {
       observaciones: orden.observaciones || "",
       nivelCombustible: orden.nivelCombustible || 0,
       idEmpresa: orden.empresa?.id || "",
-      detalleRepuesto: detalles,
+      detalleRepuesto,
       repuestosOrden,
       trabajosTerceros
-
     });
 
-    if (detalles.length > 0) {
-      setDetalleIndex(0);
-      setDetalleTemp(detalles[0]);
+    if (detalleRepuesto) {
+      setDetalleTemp(detalleRepuesto);
+    } else {
+      setDetalleTemp({ descripcion: "", valor: "", cantidad: 1, total: 0 });
     }
-    if (detalles.length === 0) {
-      setDetalleIndex(0);
-      setDetalleTemp({ descripcion: "", porcentajeRecargo: "", valor: "", cantidad: "", repuesto_id: "", total: "" });
-    }
+
     if ((repuestosOrden || []).length > 0) {
       setRepuestoOrdenIndex(0);
       setRepuestoOrdenTemp(repuestosOrden[0]);
@@ -239,12 +265,7 @@ function OrdenTrabajoCRUD() {
 
   const editarOrden = async (ot) => {
     let ordenCompleta = ot;
-    const tieneDetalle =
-      (ot.detalleRepuestos && ot.detalleRepuestos.length > 0) ||
-      (ot.detalleRepuestosDtos && ot.detalleRepuestosDtos.length > 0) ||
-      (ot.detalleRepuesto && ot.detalleRepuesto.length > 0) ||
-      (ot.detalle && ot.detalle.length > 0) ||
-      (ot.detalles && ot.detalles.length > 0);
+    const tieneDetalle = !!(ot.detalleRepuesto || ot.detalleRepuestos);
 
     if (!tieneDetalle && ot.id) {
       const endpoints = [
@@ -290,14 +311,14 @@ function OrdenTrabajoCRUD() {
       observaciones: "",
       nivelCombustible: 0,
       idEmpresa: "",
-      detalleRepuesto: [],
+      detalleRepuesto: null,
       repuestosOrden: [],
       trabajosTerceros: []
     });
     setDetalleIndex(0);
     setRepuestoOrdenIndex(0);
     setTrabajoTerceroIndex(0);
-    setDetalleTemp({ descripcion: "", porcentajeRecargo: "", valor: "", cantidad: "", repuesto_id: "", total: "" });
+    setDetalleTemp({ descripcion: "", valor: "", cantidad: 1, total: 0 });
     setRepuestoOrdenTemp({ descripcion: "", porcentajeRecargo: "", valor: "", cantidad: 1, prestadorServicio: "", total: "" });
     setTrabajoTerceroTemp({ descripcionTercero: "", porcentajeRecargoTercero: "", valorTercero: "", totalTercero: "", cantidadTercero: 1, prestadorServicioTercero: "" });
     setEditMode(false);
@@ -315,127 +336,76 @@ function OrdenTrabajoCRUD() {
     setTrabajoTerceroTemp(prev => ({ ...prev, [field]: value }));
   };
 
-  // --- Funciones de Modificación y Eliminación para Sub-listas ---
-
-  const modificarDetalle = () => {
-    if (!formData.detalleRepuesto[detalleIndex]) return;
-
-    const base = Number(detalleTemp.cantidad) * Number(detalleTemp.valor);
-    const recargo = (Number(detalleTemp.porcentajeRecargo) * base) / 100;
-    const total = base + recargo;
-
-    const detalleActualizado = { ...detalleTemp, total };
-
-    setFormData(prev => {
-      const lista = [...prev.detalleRepuesto];
-      lista[detalleIndex] = detalleActualizado;
-      return { ...prev, detalleRepuesto: lista };
-    });
+  // --- Funciones de Modificación y Eliminación para Detalle Único ---
+  const aplicarDetalle = () => {
+    const base = Number(detalleTemp.cantidad || 1) * Number(detalleTemp.valor || 0);
+    const nuevoDetalle = { ...detalleTemp, total: base };
+    setFormData(prev => ({ ...prev, detalleRepuesto: nuevoDetalle }));
   };
 
   const eliminarDetalle = () => {
-    if (!formData.detalleRepuesto[detalleIndex]) return;
-    setFormData(prev => {
-      const lista = prev.detalleRepuesto.filter((_, i) => i !== detalleIndex);
-      return { ...prev, detalleRepuesto: lista };
-    });
-    setDetalleIndex(0);
-    if (formData.detalleRepuesto.length > 1) {
-      setDetalleTemp(formData.detalleRepuesto[0]);
-    } else {
-      prepararNuevoDetalle();
-    }
+    setFormData(prev => ({ ...prev, detalleRepuesto: null }));
+    setDetalleTemp({ descripcion: "", valor: "", cantidad: 1, total: 0 });
   };
 
   const prepararNuevoDetalle = () => {
-    setDetalleIndex(formData.detalleRepuesto.length);
-    setDetalleTemp({ descripcion: "", porcentajeRecargo: "", valor: "", cantidad: "", repuesto_id: "", total: "" });
+    setDetalleTemp({ descripcion: "", valor: "", cantidad: 1, total: 0 });
   };
 
   const modificarRepuestoOrden = () => {
-    if (!formData.repuestosOrden[repuestoOrdenIndex]) return;
-
-    const base = Number(repuestoOrdenTemp.cantidad || 1) * Number(repuestoOrdenTemp.valor);
-    const recargo = (Number(repuestoOrdenTemp.porcentajeRecargo) * base) / 100;
+    if (repuestoOrdenIndex < 0 || repuestoOrdenIndex >= (formData.repuestosOrden || []).length) return;
+    const base = Number(repuestoOrdenTemp.cantidad || 1) * Number(repuestoOrdenTemp.valor || 0);
+    const recargo = (Number(repuestoOrdenTemp.porcentajeRecargo || 0) * base) / 100;
     const total = base + recargo;
-
     const objetoActualizado = { ...repuestoOrdenTemp, total };
-
     setFormData(prev => {
-      const lista = [...prev.repuestosOrden];
+      const lista = [...(prev.repuestosOrden || [])];
       lista[repuestoOrdenIndex] = objetoActualizado;
       return { ...prev, repuestosOrden: lista };
     });
   };
 
   const eliminarRepuestoOrden = () => {
-    if (!formData.repuestosOrden[repuestoOrdenIndex]) return;
+    if (repuestoOrdenIndex < 0 || repuestoOrdenIndex >= (formData.repuestosOrden || []).length) return;
     setFormData(prev => {
-      const lista = prev.repuestosOrden.filter((_, i) => i !== repuestoOrdenIndex);
+      const lista = (prev.repuestosOrden || []).filter((_, i) => i !== repuestoOrdenIndex);
       return { ...prev, repuestosOrden: lista };
     });
     setRepuestoOrdenIndex(0);
-    if (formData.repuestosOrden.length > 1) {
-      setRepuestoOrdenTemp(formData.repuestosOrden[0]);
-    } else {
-      prepararNuevoRepuestoOrden();
-    }
   };
 
   const prepararNuevoRepuestoOrden = () => {
-    setRepuestoOrdenIndex((formData.repuestosOrden || []).length);
+    const repuestos = formData.repuestosOrden || [];
+    setRepuestoOrdenIndex(repuestos.length);
     setRepuestoOrdenTemp({ descripcion: "", porcentajeRecargo: "", valor: "", prestadorServicio: "", total: "", cantidad: 1 });
   };
 
+  const prepararNuevoTrabajoTercero = () => {
+    const trabajos = formData.trabajosTerceros || [];
+    setTrabajoTerceroIndex(trabajos.length);
+    setTrabajoTerceroTemp({ descripcionTercero: "", porcentajeRecargoTercero: "", valorTercero: "", totalTercero: "", cantidadTercero: 1, prestadorServicioTercero: "" });
+  };
+
   const modificarTrabajoTercero = () => {
-    if (!formData.trabajosTerceros[trabajoTerceroIndex]) return;
-
-    const base = Number(trabajoTerceroTemp.cantidadTercero || 1) * Number(trabajoTerceroTemp.valorTercero);
-    const recargo = (Number(trabajoTerceroTemp.porcentajeRecargoTercero) * base) / 100;
+    if (trabajoTerceroIndex < 0 || trabajoTerceroIndex >= (formData.trabajosTerceros || []).length) return;
+    const base = Number(trabajoTerceroTemp.cantidadTercero || 1) * Number(trabajoTerceroTemp.valorTercero || 0);
+    const recargo = (Number(trabajoTerceroTemp.porcentajeRecargoTercero || 0) * base) / 100;
     const totalTercero = base + recargo;
-
     const trabajoActualizado = { ...trabajoTerceroTemp, totalTercero };
-
     setFormData(prev => {
-      const lista = [...prev.trabajosTerceros];
+      const lista = [...(prev.trabajosTerceros || [])];
       lista[trabajoTerceroIndex] = trabajoActualizado;
       return { ...prev, trabajosTerceros: lista };
     });
   };
 
   const eliminarTrabajoTercero = () => {
-    if (!formData.trabajosTerceros[trabajoTerceroIndex]) return;
+    if (trabajoTerceroIndex < 0 || trabajoTerceroIndex >= (formData.trabajosTerceros || []).length) return;
     setFormData(prev => {
-      const lista = prev.trabajosTerceros.filter((_, i) => i !== trabajoTerceroIndex);
+      const lista = (prev.trabajosTerceros || []).filter((_, i) => i !== trabajoTerceroIndex);
       return { ...prev, trabajosTerceros: lista };
     });
     setTrabajoTerceroIndex(0);
-    if (formData.trabajosTerceros.length > 1) {
-      setTrabajoTerceroTemp(formData.trabajosTerceros[0]);
-    } else {
-      prepararNuevoTrabajoTercero();
-    }
-  };
-
-  const prepararNuevoTrabajoTercero = () => {
-    setTrabajoTerceroIndex(formData.trabajosTerceros.length);
-    setTrabajoTerceroTemp({ descripcionTercero: "", porcentajeRecargoTercero: "", valorTercero: "", prestadorServicioTercero: "", totalTercero: "", cantidadTercero: 1 });
-  };
-
-  const irDetalleAnterior = () => {
-    if (detalleIndex > 0) {
-      const nextIndex = detalleIndex - 1;
-      setDetalleIndex(nextIndex);
-      setDetalleTemp(formData.detalleRepuesto[nextIndex]);
-    }
-  };
-
-  const irDetalleSiguiente = () => {
-    if (detalleIndex < formData.detalleRepuesto.length - 1) {
-      const nextIndex = detalleIndex + 1;
-      setDetalleIndex(nextIndex);
-      setDetalleTemp(formData.detalleRepuesto[nextIndex]);
-    }
   };
 
   const irRepuestoOrdenAnterior = () => {
@@ -491,22 +461,6 @@ function OrdenTrabajoCRUD() {
       return 0;
     });
 
-  const agregarDetalle = () => {
-    const base = Number(detalleTemp.cantidad) * Number(detalleTemp.valor);
-    const recargo = (Number(detalleTemp.porcentajeRecargo) * base) / 100;
-    const totalDetalle = base + recargo;
-
-    const nuevoDetalle = { ...detalleTemp, total: totalDetalle };
-
-    setFormData(prev => ({
-      ...prev,
-      detalleRepuesto: [...prev.detalleRepuesto, nuevoDetalle]
-    }));
-
-    setDetalleIndex(formData.detalleRepuesto.length);
-    setDetalleTemp({ descripcion: "", porcentajeRecargo: "", valor: "", cantidad: "", repuesto_id: "", total: "" });
-  };
-
   const agregarRepuestoOrden = () => {
     const base = Number(repuestoOrdenTemp.cantidad || 1) * Number(repuestoOrdenTemp.valor);
     const recargo = (Number(repuestoOrdenTemp.porcentajeRecargo) * base) / 100;
@@ -551,22 +505,6 @@ function OrdenTrabajoCRUD() {
       totalTercero: "",
       cantidadTercero: 1
     });
-  };
-
-  const handleRepuestoSelect = (id) => {
-    if (id === "") {
-      setDetalleTemp({ ...detalleTemp, repuesto_id: "", descripcion: "", valor: "" });
-      return;
-    }
-    const rep = repuestos.find(r => r.id === id);
-    if (rep) {
-      setDetalleTemp({
-        ...detalleTemp,
-        repuesto_id: rep.id,
-        descripcion: rep.nombre,
-        valor: rep.valor
-      });
-    }
   };
 
   return (
@@ -704,30 +642,27 @@ function OrdenTrabajoCRUD() {
           />
         </Box>
 
-        <Typography variant="h6" sx={{ mt: 2 }}>Detalles</Typography>
+        <Typography variant="h6" sx={{ mt: 2 }}>Detalle de Trabajo</Typography>
         <Box sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          {formData.detalleRepuesto.length > 0 && (
-            <>
-              <Button size="small" variant="outlined" onClick={irDetalleAnterior} disabled={detalleIndex === 0}>Anterior</Button>
-              <Button size="small" variant="outlined" onClick={irDetalleSiguiente} disabled={detalleIndex >= formData.detalleRepuesto.length - 1}>Siguiente</Button>
-              <Typography variant="body2" sx={{ mx: 1 }}>{detalleIndex + 1} / {formData.detalleRepuesto.length}</Typography>
-              <Button size="small" variant="contained" color="success" onClick={modificarDetalle}>Actualizar Seleccionado</Button>
-              <Button size="small" variant="contained" color="error" onClick={eliminarDetalle}>Eliminar</Button>
-            </>
+          {formData.detalleRepuesto && (
+            <Button size="small" variant="contained" color="error" onClick={eliminarDetalle}>Limpiar Detalle</Button>
           )}
-          <Button size="small" variant="outlined" color="primary" onClick={prepararNuevoDetalle} sx={{ ml: "auto" }}>Limpiar / Nuevo</Button>
+          <Button size="small" variant="outlined" color="primary" onClick={prepararNuevoDetalle} sx={{ ml: "auto" }}>Limpiar Campos</Button>
         </Box>
         <Box sx={{ mb: 2 }}>
-          <TextField fullWidth multiline rows={2} label="Descripción" value={detalleTemp.descripcion}
-            onChange={e => actualizarDetalleTemp("descripcion", e.target.value)} />
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>Descripción Detallada (Formato Word)</Typography>
+          <Box sx={{ "& .ql-container": { minHeight: "150px", fontSize: "1rem" }, backgroundColor: "white" }}>
+            <ReactQuill 
+              theme="snow" 
+              modules={quillModules}
+              value={detalleTemp.descripcion} 
+              onChange={val => actualizarDetalleTemp("descripcion", val)} 
+            />
+          </Box>
         </Box>
         <Grid container spacing={2} sx={{ mb: 1 }}>
           <Grid item xs={12} sm={6} md={3}>
-            <TextField fullWidth label="Recargo (%)" value={detalleTemp.porcentajeRecargo || ""}
-              onChange={e => actualizarDetalleTemp("porcentajeRecargo", e.target.value)} />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField fullWidth label="Valor" value={fmtDisplay(detalleTemp.valor)}
+            <TextField fullWidth label="Valor Unitario" value={fmtDisplay(detalleTemp.valor)}
               onChange={e => actualizarDetalleTemp("valor", parseRaw(e.target.value))} />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -737,28 +672,10 @@ function OrdenTrabajoCRUD() {
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Total" value={fmt(detalleTemp.total || 0)} slotProps={{ input: { readOnly: true } }} />
           </Grid>
-        </Grid>
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} md={9}>
-            <FormControl fullWidth sx={selectFieldSx}>
-              <InputLabel shrink>Repuesto</InputLabel>
-              <Select
-                value={detalleTemp.repuesto_id}
-                label="Repuesto"
-                displayEmpty
-                onChange={e => handleRepuestoSelect(e.target.value)}
-              >
-                <MenuItem value="">Sin repuesto</MenuItem>
-                {repuestos.map(r => (
-                  <MenuItem key={r.id} value={r.id}>
-                    {r.nombre} - {r.codigo}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Button fullWidth variant="outlined" sx={{ height: '100%', minHeight: 56 }} onClick={agregarDetalle}>Agregar</Button>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button fullWidth variant="contained" color="success" sx={{ height: '100%', minHeight: 56 }} onClick={aplicarDetalle}>
+              {formData.detalleRepuesto ? "Actualizar Detalle" : "Asignar a Orden"}
+            </Button>
           </Grid>
         </Grid>
 
@@ -781,20 +698,27 @@ function OrdenTrabajoCRUD() {
             onChange={e => actualizarRepuestoOrdenTemp("descripcion", e.target.value)} />
         </Box>
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField fullWidth label="Cantidad" type="number" value={repuestoOrdenTemp.cantidad}
+              onChange={e => actualizarRepuestoOrdenTemp("cantidad", e.target.value)} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField fullWidth label="Valor Unit." value={fmtDisplay(repuestoOrdenTemp.valor)}
+              onChange={e => actualizarRepuestoOrdenTemp("valor", parseRaw(e.target.value))} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
             <TextField fullWidth label="Recargo (%)" value={repuestoOrdenTemp.porcentajeRecargo || ""}
               onChange={e => actualizarRepuestoOrdenTemp("porcentajeRecargo", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField fullWidth label="Valor" value={fmtDisplay(repuestoOrdenTemp.valor)}
-              onChange={e => actualizarRepuestoOrdenTemp("valor", parseRaw(e.target.value))} />
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField fullWidth label="Total Item" value={fmt(repuestoOrdenTemp.total || 0)} InputProps={{ readOnly: true }} />
           </Grid>
-          <Grid item xs={12} sm={8} md={4}>
+          <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Prestador Servicio" value={repuestoOrdenTemp.prestadorServicio}
               onChange={e => actualizarRepuestoOrdenTemp("prestadorServicio", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={4} md={2}>
-            <Button fullWidth variant="outlined" color="primary" sx={{ height: '100%', minHeight: 56 }} onClick={agregarRepuestoOrden}>Agregar Nuevo</Button>
+          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <Button variant="outlined" color="primary" sx={{ height: 56, minWidth: 200 }} onClick={agregarRepuestoOrden}>Agregar Nuevo</Button>
           </Grid>
         </Grid>
 
@@ -825,47 +749,43 @@ function OrdenTrabajoCRUD() {
             <TextField fullWidth label="Valor" value={fmtDisplay(trabajoTerceroTemp.valorTercero)}
               onChange={e => actualizarTrabajoTerceroTemp("valorTercero", parseRaw(e.target.value))} />
           </Grid>
-          <Grid item xs={12} sm={8} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField fullWidth label="Total Item" value={fmt(trabajoTerceroTemp.totalTercero || 0)} InputProps={{ readOnly: true }} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Prestador Servicio" value={trabajoTerceroTemp.prestadorServicioTercero}
               onChange={e => actualizarTrabajoTerceroTemp("prestadorServicioTercero", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={4} md={2}>
-            <Button fullWidth variant="outlined" color="primary" sx={{ height: '100%', minHeight: 56 }} onClick={agregarTrabajoTercero}>Agregar Nuevo</Button>
+          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <Button variant="outlined" color="primary" sx={{ height: 56, minWidth: 200 }} onClick={agregarTrabajoTercero}>Agregar Nuevo</Button>
           </Grid>
         </Grid>
 
 
-        {formData.detalleRepuesto && formData.detalleRepuesto.length > 0 && (
+        {formData.detalleRepuesto && (
           <Box sx={{ mt: 3, mb: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Detalle Trabajos</Typography>
+            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Detalle Trabajo Principal</Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: 'action.hover' }}>
-                    <TableCell>Descripción</TableCell>
-                    <TableCell>ID Repuesto</TableCell>
-                    <TableCell align="right">Cantidad</TableCell>
-                    <TableCell align="right">Valor Unit.</TableCell>
-                    <TableCell align="right">Recargo (%)</TableCell>
-                    <TableCell align="right">Total</TableCell>
-                  </TableRow>
+                 <TableRow sx={{ backgroundColor: 'action.hover' }}>
+                     <TableCell>Descripción</TableCell>
+                     <TableCell align="right">Cantidad</TableCell>
+                     <TableCell align="right">Valor Unit.</TableCell>
+                     <TableCell align="right">Total</TableCell>
+                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {formData.detalleRepuesto.map((d, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{d.descripcion}</TableCell>
-                      <TableCell>{d.repuesto_id || "-"}</TableCell>
-                      <TableCell align="right">{d.cantidad}</TableCell>
-                      <TableCell align="right">${fmt(d.valor)}</TableCell>
-                      <TableCell align="right">{d.porcentajeRecargo || 0}%</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>${fmt(d.total)}</TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                    <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>Total Repuestos:</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                      ${fmt(formData.detalleRepuesto.reduce((acc, curr) => acc + Number(curr.total || 0), 0))}
+                  <TableRow>
+                    <TableCell>
+                      <div 
+                        style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                        dangerouslySetInnerHTML={{ __html: formData.detalleRepuesto.descripcion }} 
+                      />
                     </TableCell>
+                    <TableCell align="right">{formData.detalleRepuesto.cantidad}</TableCell>
+                    <TableCell align="right">${fmt(formData.detalleRepuesto.valor)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>${fmt(formData.detalleRepuesto.total)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -882,7 +802,8 @@ function OrdenTrabajoCRUD() {
                   <TableRow sx={{ backgroundColor: 'action.hover' }}>
                     <TableCell>Descripción</TableCell>
                     <TableCell>Prestador</TableCell>
-                    <TableCell align="right">Valor Base</TableCell>
+                    <TableCell align="right">Valor Unit.</TableCell>
+                    <TableCell align="right">Cant.</TableCell>
                     <TableCell align="right">Recargo (%)</TableCell>
                     <TableCell align="right">Total</TableCell>
                   </TableRow>
@@ -893,12 +814,13 @@ function OrdenTrabajoCRUD() {
                       <TableCell>{ro.descripcion}</TableCell>
                       <TableCell>{ro.prestadorServicio || "-"}</TableCell>
                       <TableCell align="right">${fmt(ro.valor)}</TableCell>
+                      <TableCell align="right">{ro.cantidad || 1}</TableCell>
                       <TableCell align="right">{ro.porcentajeRecargo || 0}%</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 'bold' }}>${fmt(ro.total)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                    <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>Total Repuestos:</TableCell>
+                    <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>Total Repuestos:</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                       ${fmt(formData.repuestosOrden.reduce((acc, curr) => acc + Number(curr.total || 0), 0))}
                     </TableCell>
