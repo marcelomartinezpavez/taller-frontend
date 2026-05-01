@@ -7,7 +7,8 @@ import {
   TableHead, TableRow, TablePagination, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete, InputAdornment
 } from "@mui/material";
-import { formatearRut } from "../utils/validar";
+import { validarRut, formatearRut } from "../utils/validar";
+import { useNotificacion } from "../utils/useNotificacion";
 
 
 function VehiculosCRUD() {
@@ -31,6 +32,9 @@ function VehiculosCRUD() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
+  const [patenteError, setPatenteError] = useState("");
+  const [rutModalError, setRutModalError] = useState("");
+  const { mostrarExito, mostrarError, notificacion } = useNotificacion();
   const [openModalCliente, setOpenModalCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState({
     nombre: "", apellido: "", rut: "", direccion: "",
@@ -40,17 +44,25 @@ function VehiculosCRUD() {
   const handleOpenModal = () => setOpenModalCliente(true);
   const handleCloseModal = () => {
     setOpenModalCliente(false);
+    setRutModalError("");
     setNuevoCliente({ nombre: "", apellido: "", rut: "", direccion: "", comuna: "", ciudad: "", telefono: "", email: "", habilitado: true });
   };
 
   const guardarNuevoCliente = () => {
+    const resultadoRut = validarRut(nuevoCliente.rut);
+    if (!resultadoRut.valido) {
+      setRutModalError(resultadoRut.mensaje);
+      return;
+    }
+    setRutModalError("");
     api.post("/clientes/insert", nuevoCliente)
       .then(() => {
         cargarClientes();
         setFormData(prev => ({ ...prev, rutDueno: nuevoCliente.rut }));
         handleCloseModal();
+        mostrarExito("Cliente creado exitosamente");
       })
-      .catch(err => console.error("Error al crear cliente:", err));
+      .catch(err => { console.error("Error al crear cliente:", err); mostrarError("Error al crear cliente"); });
   };
 
   useEffect(() => {
@@ -71,20 +83,19 @@ function VehiculosCRUD() {
   };
 
   const guardarVehiculo = () => {
+    if (!formData.patente.trim()) {
+      setPatenteError("Patente es requerida");
+      return;
+    }
+    setPatenteError("");
     if (editMode) {
       api.put("/vehiculos/update", formData)
-        .then(() => {
-          cargarVehiculos();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarVehiculos(); resetForm(); mostrarExito("Vehículo actualizado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al actualizar vehículo"); });
     } else {
       api.post("/vehiculos/insert", formData)
-        .then(() => {
-          cargarVehiculos();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarVehiculos(); resetForm(); mostrarExito("Vehículo creado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al crear vehículo"); });
     }
   };
 
@@ -107,8 +118,8 @@ function VehiculosCRUD() {
 
   const eliminarVehiculo = (veh) => {
     api.delete("/vehiculos/delete", { data: { id: veh.id } })
-      .then(() => cargarVehiculos())
-      .catch(err => console.error(err));
+      .then(() => { cargarVehiculos(); mostrarExito("Vehículo eliminado exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al eliminar vehículo"); });
   };
 
   const resetForm = () => {
@@ -126,6 +137,7 @@ function VehiculosCRUD() {
       habilitado: true
     });
     setEditMode(false);
+    setPatenteError("");
   };
 
   const handleChangePage = (_, newPage) => {
@@ -157,8 +169,14 @@ function VehiculosCRUD() {
               onChange={e => setFormData({ ...formData, modelo: e.target.value })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <TextField fullWidth label="Patente" value={formData.patente}
-              onChange={e => setFormData({ ...formData, patente: e.target.value })} />
+            <TextField fullWidth label="Patente *" value={formData.patente}
+              onChange={e => {
+                const valor = e.target.value.toUpperCase();
+                setFormData({ ...formData, patente: valor });
+                if (valor.trim()) setPatenteError("");
+              }}
+              error={!!patenteError}
+              helperText={patenteError} />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Año" value={formData.anio}
@@ -317,7 +335,19 @@ function VehiculosCRUD() {
               <TextField fullWidth label="Apellido" value={nuevoCliente.apellido} onChange={e => setNuevoCliente({ ...nuevoCliente, apellido: e.target.value })} />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <TextField fullWidth label="RUT" value={nuevoCliente.rut} onChange={e => setNuevoCliente({ ...nuevoCliente, rut: e.target.value })} />
+              <TextField fullWidth label="RUT *" value={nuevoCliente.rut}
+                onChange={e => {
+                  const valor = e.target.value;
+                  setNuevoCliente({ ...nuevoCliente, rut: valor });
+                  if (valor.length >= 2) {
+                    const res = validarRut(valor);
+                    setRutModalError(res.valido ? "" : res.mensaje);
+                  } else {
+                    setRutModalError("");
+                  }
+                }}
+                error={!!rutModalError}
+                helperText={rutModalError} />
             </Grid>
             <Grid item xs={12} sm={6} md={6}>
               <TextField fullWidth label="Dirección" value={nuevoCliente.direccion} onChange={e => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })} />
@@ -341,6 +371,7 @@ function VehiculosCRUD() {
           <Button onClick={guardarNuevoCliente} variant="contained" color="primary">Guardar Cliente</Button>
         </DialogActions>
       </Dialog>
+      {notificacion}
     </Box>
   );
 }

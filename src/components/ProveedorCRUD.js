@@ -4,9 +4,12 @@ import {
   Paper, Typography, Box, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid
 } from "@mui/material";
+import { validarRut, formatearRut } from "../utils/validar";
+import { useNotificacion } from "../utils/useNotificacion";
 
 function ProveedorCRUD() {
   const [proveedores, setProveedores] = useState([]);
+  const [rutError, setRutError] = useState("");
   const [formData, setFormData] = useState({
     id: "",
     nombre: "",
@@ -23,6 +26,7 @@ function ProveedorCRUD() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
+  const { mostrarExito, mostrarError, notificacion } = useNotificacion();
 
   useEffect(() => {
     cargarProveedores();
@@ -35,20 +39,21 @@ function ProveedorCRUD() {
   };
 
   const guardarProveedor = () => {
+    const resultado = validarRut(formData.rut);
+    if (!resultado.valido) {
+      setRutError(resultado.mensaje);
+      return;
+    }
+    setRutError("");
+
     if (editMode) {
       api.put("/proveedor/update", formData)
-        .then(() => {
-          cargarProveedores();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarProveedores(); resetForm(); mostrarExito("Proveedor actualizado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al actualizar proveedor"); });
     } else {
       api.post("/proveedor/insert", formData)
-        .then(() => {
-          cargarProveedores();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarProveedores(); resetForm(); mostrarExito("Proveedor creado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al crear proveedor"); });
     }
   };
 
@@ -70,8 +75,8 @@ function ProveedorCRUD() {
 
   const eliminarProveedor = (prov) => {
     api.delete("/proveedor/delete", { data: { id: prov.id } })
-      .then(() => cargarProveedores())
-      .catch(err => console.error(err));
+      .then(() => { cargarProveedores(); mostrarExito("Proveedor eliminado exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al eliminar proveedor"); });
   };
 
   const resetForm = () => {
@@ -88,6 +93,7 @@ function ProveedorCRUD() {
       habilitado: true
     });
     setEditMode(false);
+    setRutError("");
   };
 
   const handleChangePage = (_, newPage) => {
@@ -119,8 +125,23 @@ function ProveedorCRUD() {
               onChange={e => setFormData({ ...formData, apellido: e.target.value })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <TextField fullWidth label="RUT" value={formData.rut}
-              onChange={e => setFormData({ ...formData, rut: e.target.value })} />
+            <TextField 
+              fullWidth 
+              label="RUT *" 
+              value={formData.rut}
+              onChange={e => {
+                const valor = e.target.value;
+                setFormData({ ...formData, rut: valor });
+                if (valor.length >= 2) {
+                  const resultado = validarRut(valor);
+                  setRutError(resultado.valido ? "" : resultado.mensaje);
+                } else {
+                  setRutError("");
+                }
+              }}
+              error={!!rutError}
+              helperText={rutError}
+            />
           </Grid>
           <Grid item xs={12} sm={6} md={6}>
             <TextField fullWidth label="Dirección" value={formData.direccion}
@@ -190,7 +211,7 @@ function ProveedorCRUD() {
                 <TableRow key={p.id}>
                   <TableCell>{p.nombre}</TableCell>
                   <TableCell>{p.apellido}</TableCell>
-                  <TableCell>{p.rut}</TableCell>
+                  <TableCell>{formatearRut(p.rut)}</TableCell>
                   <TableCell>{p.direccion}</TableCell>
                   <TableCell>{p.comuna}</TableCell>
                   <TableCell>{p.ciudad}</TableCell>
@@ -217,6 +238,7 @@ function ProveedorCRUD() {
           labelRowsPerPage="Proveedores por página"
         />
       </Paper>
+      {notificacion}
     </Box>
   );
 }

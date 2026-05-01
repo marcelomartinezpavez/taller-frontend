@@ -3,6 +3,7 @@ import api from "../services/api";
 import {Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Typography, Box, TextField, Button, TablePagination, Grid } from "@mui/material";
 import { validarRut, formatearRut } from "../utils/validar";
+import { useNotificacion } from "../utils/useNotificacion";
 
 function ClientesCRUD() {
   const [clientes, setClientes] = useState([]);
@@ -23,6 +24,7 @@ function ClientesCRUD() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
+  const { mostrarExito, mostrarError, notificacion } = useNotificacion();
 
   useEffect(() => {
     cargarClientes();
@@ -44,18 +46,12 @@ function ClientesCRUD() {
     
     if (editMode) {
       api.put("/clientes/update", formData)
-        .then(() => {
-          cargarClientes();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarClientes(); resetForm(); mostrarExito("Cliente actualizado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al actualizar cliente"); });
     } else {
       api.post("/clientes/insert", formData)
-        .then(() => {
-          cargarClientes();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarClientes(); resetForm(); mostrarExito("Cliente creado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al crear cliente"); });
     }
   };
 
@@ -77,8 +73,8 @@ function ClientesCRUD() {
 
   const eliminarCliente = (cliente) => {
     api.delete("/clientes/delete", { data: { id: cliente.id } })
-      .then(() => cargarClientes())
-      .catch(err => console.error(err));
+      .then(() => { cargarClientes(); mostrarExito("Cliente eliminado exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al eliminar cliente"); });
   };
 
   const resetForm = () => {
@@ -282,6 +278,7 @@ function ClientesCRUD() {
           labelRowsPerPage="Clientes por página"
         />
       </Paper>
+      {notificacion}
     </Box>
   );
 }

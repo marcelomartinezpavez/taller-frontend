@@ -5,8 +5,10 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Grid, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText
 } from "@mui/material";
 import { validarRut, formatearRut } from "../utils/validar";
+import { useNotificacion } from "../utils/useNotificacion";
 
 function AgendaCRUD() {
+  const { mostrarExito, mostrarError, notificacion } = useNotificacion();
   const [agendas, setAgendas] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
@@ -87,18 +89,12 @@ function AgendaCRUD() {
 
     if (editMode) {
       api.put("/agenda/update", dataToSend)
-        .then(() => {
-          cargarAgendas();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarAgendas(); resetForm(); mostrarExito("Reserva actualizada exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al actualizar reserva"); });
     } else {
       api.post("/agenda/insert", dataToSend)
-        .then(() => {
-          cargarAgendas();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarAgendas(); resetForm(); mostrarExito("Reserva creada exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al crear reserva"); });
     }
   };
 
@@ -135,8 +131,8 @@ function AgendaCRUD() {
 
   const eliminarAgenda = (agenda) => {
     api.delete("/agenda/delete", { data: { id: agenda.id } })
-      .then(() => cargarAgendas())
-      .catch(err => console.error(err));
+      .then(() => { cargarAgendas(); mostrarExito("Reserva eliminada exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al eliminar reserva"); });
   };
 
   const cambiarEstado = async (agenda, nuevoEstado) => {
@@ -172,8 +168,8 @@ function AgendaCRUD() {
     }
 
     api.put("/agenda/update", { ...agenda, estado: nuevoEstado })
-      .then(() => cargarAgendas())
-      .catch(err => console.error(err));
+      .then(() => { cargarAgendas(); mostrarExito("Estado actualizado exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al actualizar estado"); });
   };
 
   const crearCliente = () => {
@@ -188,12 +184,13 @@ function AgendaCRUD() {
       .then(() => {
         cargarClientes();
         setOpenClienteModal(false);
+        mostrarExito("Cliente creado exitosamente");
         if (reservaSeleccionada) {
           setVehiculoData({ marca: "", modelo: "", patente: "", anio: "", rutDueno: clienteData.rut });
           setOpenVehiculoModal(true);
         }
       })
-      .catch(err => console.error(err));
+      .catch(err => { console.error(err); mostrarError("Error al crear cliente"); });
   };
 
   const crearOrdenTrabajo = async (agenda, rut, patenteVehiculo) => {
@@ -215,13 +212,15 @@ function AgendaCRUD() {
 
     try {
       await api.post("/ordenTrabajo/insert", ordenData);
-      await api.put("/agenda/update", { 
-        ...agenda, 
+      await api.put("/agenda/update", {
+        ...agenda,
         estado: "COMPLETADA"
       });
       cargarAgendas();
+      mostrarExito("Orden de trabajo creada exitosamente");
     } catch (err) {
       console.error(err);
+      mostrarError("Error al crear orden de trabajo");
     }
   };
 
@@ -232,6 +231,7 @@ function AgendaCRUD() {
         const nuevoVehiculoId = res.data.id;
         const nuevoVehiculoPatente = res.data.patente;
         setOpenVehiculoModal(false);
+        mostrarExito("Vehículo creado exitosamente");
         if (reservaSeleccionada) {
           api.put("/agenda/update", {
             ...reservaSeleccionada,
@@ -242,7 +242,7 @@ function AgendaCRUD() {
           });
         }
       })
-      .catch(err => console.error(err));
+      .catch(err => { console.error(err); mostrarError("Error al crear vehículo"); });
   };
 
   const handleClienteChange = (field, value) => {
@@ -621,6 +621,7 @@ function AgendaCRUD() {
           <Button onClick={manejarCrearVehiculo} variant="contained" color="primary">Guardar Vehículo y Crear OT</Button>
         </DialogActions>
       </Dialog>
+      {notificacion}
     </Box>
   );
 }

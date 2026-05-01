@@ -8,6 +8,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid, Slider
 } from "@mui/material";
 import { validarRut, formatearRut } from "../utils/validar";
+import { useNotificacion } from "../utils/useNotificacion";
 
 const quillModules = {
   toolbar: [
@@ -22,6 +23,7 @@ const quillModules = {
 function OrdenTrabajoCRUD() {
   const selectFieldSx = { "& .MuiOutlinedInput-root": { minHeight: 56 } };
   const [rutError, setRutError] = useState("");
+  const { mostrarExito, mostrarError, notificacion } = useNotificacion();
 
   // Formatea números con separador de miles
   const fmt = (n) => {
@@ -173,18 +175,12 @@ function OrdenTrabajoCRUD() {
     
     if (editMode) {
       api.put("/ordenTrabajo/update", payload)
-        .then(() => {
-          cargarOrdenes();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarOrdenes(); resetForm(); mostrarExito("Orden actualizada exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al actualizar orden"); });
     } else {
       api.post("/ordenTrabajo/insert", payload)
-        .then(() => {
-          cargarOrdenes();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarOrdenes(); resetForm(); mostrarExito("Orden creada exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al crear orden"); });
     }
   };
 
@@ -293,8 +289,8 @@ function OrdenTrabajoCRUD() {
 
   const eliminarOrden = (ot) => {
     api.delete("/ordenTrabajo/delete", { data: { id: ot.id } })
-      .then(() => cargarOrdenes())
-      .catch(err => console.error(err));
+      .then(() => { cargarOrdenes(); mostrarExito("Orden eliminada exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al eliminar orden"); });
   };
 
   const resetForm = () => {
@@ -1006,6 +1002,7 @@ function OrdenTrabajoCRUD() {
           labelRowsPerPage="Órdenes por página"
         />
       </Paper>
+      {notificacion}
     </Box>
   );
 }

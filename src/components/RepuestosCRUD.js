@@ -5,9 +5,11 @@ import {
   Select, MenuItem, InputLabel, FormControl,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid
 } from "@mui/material";
+import { useNotificacion } from "../utils/useNotificacion";
 
 function RepuestoCRUD() {
   const selectFieldSx = { "& .MuiOutlinedInput-root": { minHeight: 56 } };
+  const { mostrarExito, mostrarError, notificacion } = useNotificacion();
   const [repuestos, setRepuestos] = useState([]);
   const [proveedores, setProveedores] = useState([]); // lista de proveedores
   const [formData, setFormData] = useState({
@@ -46,18 +48,12 @@ function RepuestoCRUD() {
   const guardarRepuesto = () => {
     if (editMode) {
       api.put("/repuesto/update", formData)
-        .then(() => {
-          cargarRepuestos();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarRepuestos(); resetForm(); mostrarExito("Repuesto actualizado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al actualizar repuesto"); });
     } else {
       api.post("/repuesto/insert", formData)
-        .then(() => {
-          cargarRepuestos();
-          resetForm();
-        })
-        .catch(err => console.error(err));
+        .then(() => { cargarRepuestos(); resetForm(); mostrarExito("Repuesto creado exitosamente"); })
+        .catch(err => { console.error(err); mostrarError("Error al crear repuesto"); });
     }
   };
 
@@ -78,8 +74,8 @@ function RepuestoCRUD() {
 
   const eliminarRepuesto = (rep) => {
     api.delete("/repuesto/delete", { data: { id: rep.id } })
-      .then(() => cargarRepuestos())
-      .catch(err => console.error(err));
+      .then(() => { cargarRepuestos(); mostrarExito("Repuesto eliminado exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al eliminar repuesto"); });
   };
 
   const resetForm = () => {
@@ -232,6 +228,7 @@ function RepuestoCRUD() {
           labelRowsPerPage="Repuestos por página"
         />
       </Paper>
+      {notificacion}
     </Box>
   );
 }

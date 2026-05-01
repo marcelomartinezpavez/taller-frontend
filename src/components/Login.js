@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Button, TextField, Typography, Paper, Alert } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 function Login() {
   const [users, setUsers] = useState("");
@@ -11,16 +12,8 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("/login/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ users, pass })
-      });
-      
-      if (!res.ok) throw new Error("Login failed");
-      
-      const data = await res.json();
-      localStorage.setItem("user", JSON.stringify(data));
+      const res = await api.post("/login/", { users, pass });
+      localStorage.setItem("user", JSON.stringify(res.data));
       navigate("/");
     } catch (err) {
       console.error(err);
