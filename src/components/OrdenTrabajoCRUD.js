@@ -5,8 +5,10 @@ import 'react-quill-new/dist/quill.snow.css';
 import {
   Paper, Typography, Box, TextField, Button,
   Select, MenuItem, InputLabel, FormControl,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid, Slider
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid, Slider,
+  Dialog, DialogTitle, DialogContent, DialogActions, Divider, IconButton, Chip
 } from "@mui/material";
+import CloseIcon from '@mui/icons-material/Close';
 import { validarRut, formatearRut } from "../utils/validar";
 import { useNotificacion } from "../utils/useNotificacion";
 
@@ -41,6 +43,71 @@ function OrdenTrabajoCRUD() {
 
   // Limpia formato para obtener número raw
   const parseRaw = (v) => v.replace(/\./g, "").replace(/,/g, "");
+
+  // Formatea fecha (dd/mm/yyyy hh:mm)
+  const formatearFecha = (fechaStr) => {
+    if (!fechaStr || fechaStr.includes("null")) return "-";
+    try {
+      const fecha = new Date(fechaStr);
+      if (isNaN(fecha.getTime())) {
+        const partes = fechaStr.split(/[\/\s:]/);
+        if (partes.length >= 3) {
+          const dia = partes[0].padStart(2, '0');
+          const mes = partes[1].padStart(2, '0');
+          const anio = partes[2];
+          const hora = partes[3] || '00';
+          const min = partes[4] || '00';
+          return `${dia}/${mes}/${anio} ${hora.padStart(2,'0')}:${min.padStart(2,'0')}`;
+        }
+        return "-";
+      }
+      return fecha.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return "-";
+    }
+  };
+
+  const obtenerSeccionesOrden = (ot) => {
+    const toArr = (v) => Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
+
+    const detalleRepuestos = ot.detalleRepuestos ? toArr(ot.detalleRepuestos) :
+                             ot.detalleRepuesto  ? toArr(ot.detalleRepuesto) :
+                             ot.detalle          ? toArr(ot.detalle) :
+                             ot.detalles         ? toArr(ot.detalles) : [];
+    const repuestos = Array.isArray(ot.repuestosOrden) ? ot.repuestosOrden :
+                      Array.isArray(ot.repuestos) ? ot.repuestos :
+                      Array.isArray(ot.repuesto) ? ot.repuesto : [];
+    const trabajosTerceros = Array.isArray(ot.trabajosTerceros) ? ot.trabajosTerceros :
+                             Array.isArray(ot.trabajoTercero) ? ot.trabajoTercero :
+                             Array.isArray(ot.trabajosTercero) ? ot.trabajosTercero : [];
+
+    return { detalleRepuestos, repuestos, trabajosTerceros };
+  };
+
+  const calcularMargenOt = (ot) => {
+    const { detalleRepuestos, repuestos, trabajosTerceros } = obtenerSeccionesOrden(ot);
+
+    // detalleRepuestos (mano de obra) es 100% margen: se suma el total completo
+    const totalManoObra = detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0);
+
+    // repuestos y terceros: el margen es solo el recargo aplicado
+    const sumaRecargosRepuestos = repuestos.reduce((acc, r) => {
+      const valor = Number(r.valor || 0);
+      const cantidad = Number(r.cantidad || 1);
+      const recargo = Number(r.porcentajeRecargo || 0);
+      return acc + (valor * cantidad * recargo / 100);
+    }, 0);
+
+    const sumaRecargosTerceros = trabajosTerceros.reduce((acc, tt) => {
+      const valor = Number(tt.valorTercero || tt.valor || 0);
+      const cantidad = Number(tt.cantidadTercero || tt.cantidad || 1);
+      const recargo = Number(tt.porcentajeRecargoTercero || tt.porcentajeRecargo || 0);
+      return acc + (valor * cantidad * recargo / 100);
+    }, 0);
+
+    return totalManoObra + sumaRecargosRepuestos + sumaRecargosTerceros;
+  };
+
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
@@ -91,6 +158,12 @@ function OrdenTrabajoCRUD() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
+
+  // Modal para visualizar orden cerrada
+  const [modalVisualizar, setModalVisualizar] = useState({
+    open: false,
+    orden: null
+  });
 
   useEffect(() => {
     cargarOrdenes();
@@ -261,7 +334,8 @@ function OrdenTrabajoCRUD() {
 
   const editarOrden = async (ot) => {
     let ordenCompleta = ot;
-    const tieneDetalle = !!(ot.detalleRepuesto || ot.detalleRepuestos);
+    const hasData = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+    const tieneDetalle = hasData(ot.detalleRepuesto) || hasData(ot.detalleRepuestos);
 
     if (!tieneDetalle && ot.id) {
       const endpoints = [
@@ -291,6 +365,36 @@ function OrdenTrabajoCRUD() {
     api.delete("/ordenTrabajo/delete", { data: { id: ot.id } })
       .then(() => { cargarOrdenes(); mostrarExito("Orden eliminada exitosamente"); })
       .catch(err => { console.error(err); mostrarError("Error al eliminar orden"); });
+  };
+
+  const abrirModalVisualizar = async (ot) => {
+    let ordenCompleta = ot;
+    const hasData = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+    const tieneDetalle = hasData(ot.detalleRepuesto) || hasData(ot.detalleRepuestos) || hasData(ot.detalle) || hasData(ot.detalles);
+    if (!tieneDetalle && ot.id) {
+      const endpoints = [
+        `/ordenTrabajo/${ot.id}`,
+        `/ordenTrabajo/id/${ot.id}`,
+        `/ordenTrabajo/find/${ot.id}`
+      ];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await api.get(endpoint);
+          const data = Array.isArray(res.data) ? res.data[0] : res.data;
+          if (data && data.id) {
+            ordenCompleta = data;
+            break;
+          }
+        } catch (error) {
+          // intentar siguiente endpoint
+        }
+      }
+    }
+    setModalVisualizar({ open: true, orden: ordenCompleta });
+  };
+
+  const cerrarModalVisualizar = () => {
+    setModalVisualizar({ open: false, orden: null });
   };
 
   const resetForm = () => {
@@ -976,15 +1080,28 @@ function OrdenTrabajoCRUD() {
                       {o.estado}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="small"
-                        onClick={() => editarOrden(o)}
-                        sx={{ mr: 1 }}
-                        variant="outlined"
-                        disabled={o.estado === "CERRADO"}
-                        title={o.estado === "CERRADO" ? "No se puede editar una orden cerrada" : ""}
-                      >Editar</Button>
-                      <Button size="small" color="error" onClick={() => eliminarOrden(o)} variant="contained">Eliminar</Button>
+                      {o.estado === "CERRADO" ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          onClick={() => abrirModalVisualizar(o)}
+                        >
+                          Visualizar
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="small"
+                            onClick={() => editarOrden(o)}
+                            sx={{ mr: 1 }}
+                            variant="outlined"
+                          >Editar</Button>
+                          <Button size="small" color="error" onClick={() => eliminarOrden(o)} variant="contained">
+                            Eliminar
+                          </Button>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1003,6 +1120,239 @@ function OrdenTrabajoCRUD() {
         />
       </Paper>
       {notificacion}
+      {/* Modal Visualizar Orden Cerrada */}
+      <Dialog
+        open={modalVisualizar.open}
+        onClose={cerrarModalVisualizar}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { maxHeight: '90vh' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            Orden de Trabajo {modalVisualizar.orden?.numeroOrden || ''}
+          </Typography>
+          <IconButton onClick={cerrarModalVisualizar} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ "&::-webkit-scrollbar": { display: "none" }, msOverflowStyle: "none", scrollbarWidth: "none" }}>
+          {modalVisualizar.orden && (
+            <Box>
+              {/* Encabezado */}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                <Box sx={{ flex: '1 1 200px' }}>
+                  <Typography variant="body2" color="text.secondary">Cliente</Typography>
+                  <Typography>{formatearRut(modalVisualizar.orden.rutCliente)}</Typography>
+                </Box>
+                <Box sx={{ flex: '1 1 200px' }}>
+                  <Typography variant="body2" color="text.secondary">Vehículo</Typography>
+                  <Typography>{modalVisualizar.orden.patenteVehiculo}</Typography>
+                </Box>
+                <Box sx={{ flex: '1 1 200px' }}>
+                  <Typography variant="body2" color="text.secondary">Código</Typography>
+                  <Typography>{modalVisualizar.orden.codigo || '-'}</Typography>
+                </Box>
+                <Box sx={{ flex: '1 1 200px' }}>
+                  <Typography variant="body2" color="text.secondary">Estado</Typography>
+                  <Chip
+                    label={modalVisualizar.orden.estado}
+                    color={modalVisualizar.orden.estado === "CERRADO" ? "error" : "success"}
+                    size="small"
+                  />
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Valor y Margen */}
+              <Box sx={{ display: 'flex', gap: 4, mb: 2 }}>
+                <Typography variant="h6">
+                  Valor OT: ${modalVisualizar.orden.valorOt ? fmt(modalVisualizar.orden.valorOt) : '0'}
+                </Typography>
+                <Typography variant="body1" color="success.main" sx={{ fontWeight: 'bold' }}>
+                  Margen OT: ${fmt(calcularMargenOt(modalVisualizar.orden))}
+                </Typography>
+              </Box>
+
+              {/* Fecha Creación */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">Fecha Creación</Typography>
+                <Typography>
+                  {(() => {
+                    const fechaStr = modalVisualizar.orden.fechaIngreso;
+                    if (!fechaStr || fechaStr.includes('null')) return '-';
+                    try {
+                      const fecha = new Date(fechaStr);
+                      if (isNaN(fecha.getTime())) {
+                        const partes = fechaStr.split(/[\/\s:]/);
+                        if (partes.length >= 3) {
+                          const d = partes[0].padStart(2,'0');
+                          const m = partes[1].padStart(2,'0');
+                          const a = partes[2];
+                          const h = (partes[3] || '00').padStart(2,'0');
+                          const min = (partes[4] || '00').padStart(2,'0');
+                          return `${d}/${m}/${a} ${h}:${min}`;
+                        }
+                        return '-';
+                      }
+                      return fecha.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    } catch {
+                      return '-';
+                    }
+                  })()}
+                </Typography>
+              </Box>
+
+              {/* Observaciones */}
+              {modalVisualizar.orden.observaciones && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Observaciones</Typography>
+                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {(() => {
+                      const obs = modalVisualizar.orden.observaciones;
+                      // Strip HTML简单
+                      return obs.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Trabajos Realizados (detalle) */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Trabajos Realizados</Typography>
+                {(() => {
+                  const { detalleRepuestos } = obtenerSeccionesOrden(modalVisualizar.orden);
+                  if (!detalleRepuestos || detalleRepuestos.length === 0) {
+                    return <Typography variant="body2" color="text.secondary">No hay trabajos registrados</Typography>;
+                  }
+                  return (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Descripción</TableCell>
+                          <TableCell align="right">Valor</TableCell>
+                          <TableCell align="right">Cant.</TableCell>
+                          <TableCell align="right">Recargo</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {detalleRepuestos.map((d, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>
+                              <div
+                                style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                                dangerouslySetInnerHTML={{ __html: d.descripcion || '-' }}
+                              />
+                            </TableCell>
+                            <TableCell align="right">${fmt(d.valor || 0)}</TableCell>
+                            <TableCell align="right">{d.cantidad || 1}</TableCell>
+                            <TableCell align="right">{d.porcentajeRecargo ? d.porcentajeRecargo + '%' : '0%'}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>${fmt(d.total || 0)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow>
+                          <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>Total Mano de obra:</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            ${fmt(detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0))}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
+              </Box>
+
+              {/* Repuestos */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Repuestos</Typography>
+                {(() => {
+                  const { repuestos } = obtenerSeccionesOrden(modalVisualizar.orden);
+                  if (!repuestos || repuestos.length === 0) {
+                    return <Typography variant="body2" color="text.secondary">No hay repuestos registrados</Typography>;
+                  }
+                  return (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Descripción</TableCell>
+                          <TableCell align="right">Cant.</TableCell>
+                          <TableCell align="right">Valor Unit.</TableCell>
+                          <TableCell align="right">Recargo</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {repuestos.map((r, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{r.descripcion || r.descripcionGeneral || '-'}</TableCell>
+                            <TableCell align="right">{r.cantidadGeneral || r.cantidad || 1}</TableCell>
+                            <TableCell align="right">${fmt(r.valor || r.valorGeneral || 0)}</TableCell>
+                            <TableCell align="right">{((r.porcentajeRecargoGeneral ?? r.porcentajeRecargo) || 0) + '%'}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>${fmt(r.total || r.totalGeneral || 0)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow>
+                          <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>Total Repuestos:</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            ${fmt(repuestos.reduce((acc, r) => acc + Number(r.total || r.totalGeneral || 0), 0))}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
+              </Box>
+
+              {/* Trabajos Terceros */}
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Trabajos Terceros</Typography>
+                {(() => {
+                  const { trabajosTerceros } = obtenerSeccionesOrden(modalVisualizar.orden);
+                  if (!trabajosTerceros || trabajosTerceros.length === 0) {
+                    return <Typography variant="body2" color="text.secondary">No hay trabajos terceros registrados</Typography>;
+                  }
+                  return (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Descripción</TableCell>
+                          <TableCell align="right">Valor</TableCell>
+                          <TableCell align="right">Recargo</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {trabajosTerceros.map((tt, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{tt.descripcionTercero || tt.descripcion || '-'}</TableCell>
+                            <TableCell align="right">${fmt(tt.valorTercero || tt.valor || 0)}</TableCell>
+                            <TableCell align="right">{((tt.porcentajeRecargoTercero ?? tt.porcentajeRecargo) || 0)}%</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>${fmt(tt.total || tt.totalTercero || 0)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow>
+                          <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>Total Trabajos Terceros:</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            ${fmt(trabajosTerceros.reduce((acc, tt) => acc + Number(tt.total || tt.totalTercero || 0), 0))}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cerrarModalVisualizar}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 }

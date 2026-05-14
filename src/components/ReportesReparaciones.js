@@ -14,6 +14,28 @@ function ReportesReparaciones() {
   const [filtroCliente, setFiltroCliente] = useState("");
   const [filtroPatente, setFiltroPatente] = useState("");
 
+  // Formatea fecha (dd/mm/yyyy hh:mm)
+  const formatearFecha = (fechaStr) => {
+    if (!fechaStr || fechaStr.includes("null")) return "-";
+    try {
+      const fecha = new Date(fechaStr);
+      if (isNaN(fecha.getTime())) {
+        const partes = fechaStr.split(/[\/\s:]/);
+        if (partes.length >= 3) {
+          const dia = partes[0].padStart(2, '0');
+          const mes = partes[1].padStart(2, '0');
+          const anio = partes[2];
+          const hora = partes[3] || '00';
+          const min = partes[4] || '00';
+          return `${dia}/${mes}/${anio} ${hora.padStart(2,'0')}:${min.padStart(2,'0')}`;
+        }
+        return "-";
+      }
+      return fecha.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return "-";
+    }
+  };
   useEffect(() => {
     api.get("/ordenTrabajo/all")
       .then(res => setOrdenes(res.data))
@@ -46,45 +68,67 @@ function ReportesReparaciones() {
     return num.toLocaleString("es-CL");
   };
 
+  // Convierte HTML enriquecido (ReactQuill) a texto plano respetando estructura
+  const stripHtml = (html) => {
+    if (!html) return '-';
+    let t = html;
+    // Listas con indentación (ReactQuill usa ql-indent-N)
+    t = t.replace(/<li[^>]*class="[^"]*ql-indent-(\d+)[^"]*"[^>]*>/gi,
+      (_, lvl) => '    '.repeat(Number(lvl)) + '• ');
+    t = t.replace(/<li[^>]*>/gi, '• ');
+    t = t.replace(/<\/li>/gi, '\n');
+    // Párrafos y saltos
+    t = t.replace(/<\/p>/gi, '\n');
+    t = t.replace(/<br\s*\/?>/gi, '\n');
+    t = t.replace(/<\/div>/gi, '\n');
+    // Quitar etiquetas restantes
+    t = t.replace(/<[^>]*>/g, '');
+    // Decodificar entidades HTML
+    t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+         .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+         .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    return t.replace(/\n{3,}/g, '\n\n').trim() || '-';
+  };
+
 const obtenerSeccionesOrden = (ot) => {
-  const detalleRepuestos = ot.detalleRepuestos || ot.detalleRepuesto || ot.detalle || ot.detalles || [];
-  const repuestos = ot.repuestosOrden || ot.repuestos || ot.repuesto || [];
-  const trabajosTerceros = ot.trabajosTerceros || ot.trabajoTercero || ot.trabajosTercero || [];
+  const toArr = (v) => Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
+
+  const detalleRepuestos = ot.detalleRepuestos ? toArr(ot.detalleRepuestos) :
+                           ot.detalleRepuesto  ? toArr(ot.detalleRepuesto) :
+                           ot.detalle          ? toArr(ot.detalle) :
+                           ot.detalles         ? toArr(ot.detalles) : [];
+  const repuestos = Array.isArray(ot.repuestosOrden) ? ot.repuestosOrden :
+                    Array.isArray(ot.repuestos) ? ot.repuestos :
+                    Array.isArray(ot.repuesto) ? ot.repuesto : [];
+  const trabajosTerceros = Array.isArray(ot.trabajosTerceros) ? ot.trabajosTerceros :
+                           Array.isArray(ot.trabajoTercero) ? ot.trabajoTercero :
+                           Array.isArray(ot.trabajosTercero) ? ot.trabajosTercero : [];
 
   return { detalleRepuestos, repuestos, trabajosTerceros };
 };
 
 const calcularMargenOt = (ot) => {
   const { detalleRepuestos, repuestos, trabajosTerceros } = obtenerSeccionesOrden(ot);
-  
+
+  // detalleRepuestos (mano de obra) es 100% margen: se suma el total completo
   const totalManoObra = detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0);
-  const totalRepuestos = repuestos.reduce((acc, r) => acc + Number(r.total || 0), 0);
-  const totalTerceros = trabajosTerceros.reduce((acc, tt) => acc + Number(tt.total || tt.totalTercero || 0), 0);
-  
-  const sumaRecargosDetalle = detalleRepuestos.reduce((acc, d) => {
-    const valor = Number(d.valor || 0);
-    const cantidad = Number(d.cantidad || 1);
-    const recargo = Number(d.porcentajeRecargo || 0);
-    return acc + (valor * cantidad * recargo / 100);
-  }, 0);
-  
+
+  // repuestos y terceros: el margen es solo el recargo aplicado
   const sumaRecargosRepuestos = repuestos.reduce((acc, r) => {
     const valor = Number(r.valor || 0);
     const cantidad = Number(r.cantidad || 1);
     const recargo = Number(r.porcentajeRecargo || 0);
     return acc + (valor * cantidad * recargo / 100);
   }, 0);
-  
+
   const sumaRecargosTerceros = trabajosTerceros.reduce((acc, tt) => {
     const valor = Number(tt.valorTercero || tt.valor || 0);
     const cantidad = Number(tt.cantidadTercero || tt.cantidad || 1);
     const recargo = Number(tt.porcentajeRecargoTercero || tt.porcentajeRecargo || 0);
     return acc + (valor * cantidad * recargo / 100);
   }, 0);
-  
-  const totalRecargos = sumaRecargosDetalle + sumaRecargosRepuestos + sumaRecargosTerceros;
-  
-  return totalManoObra + totalRecargos;
+
+  return totalManoObra + sumaRecargosRepuestos + sumaRecargosTerceros;
 };
 
 // Dibuja un gauge semicircular de combustible usando primitivas jsPDF
@@ -200,37 +244,35 @@ const generarPDFInterno = (ot) => {
 
   doc.setFontSize(16);
   doc.text("Reporte Orden de Trabajo", 14, 20);
-
   doc.setFontSize(12);
+  doc.text(`Fecha Creación: ${formatearFecha(ot.fechaIngreso)}`, 14, 30);
+
   // Fila 1
-  doc.text(`Número Orden: ${ot.numeroOrden}`, 14, 35);
-  doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 35);
-  doc.text(`Vehículo: ${ot.patenteVehiculo}`, 120, 35);
+  doc.text(`Número Orden: ${ot.numeroOrden}`, 14, 40);
+  doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 40);
+  doc.text(`Vehículo: ${ot.patenteVehiculo}`, 130, 40);
 
   // Fila 2
-  doc.text(`Código: ${ot.codigo}`, 14, 45);
-  doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 75, 45);
+  doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 50);
   const margenOt = calcularMargenOt(ot);
   doc.setTextColor(0, 100, 0);
-  doc.text(`Margen OT: $${fmtPDF(margenOt)}`, 120, 45);
+  doc.text(`Margen OT: $${fmtPDF(margenOt)}`, 75, 50);
   doc.setTextColor(0, 0, 0);
-  doc.text(`Estado: ${ot.estado}`, 165, 45);
-
+  doc.text(`Estado: ${ot.estado}`, 130, 50);
   // Gauge gráfico de combustible (esquina derecha del encabezado)
   const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
   dibujarGaugeCombustible(doc, 183, 40, 11, nivelCombustible);
 
   // Observaciones
-  doc.setFontSize(11);
-  const obsText = `Observaciones: ${ot.observaciones || "-"}`;
-  const obsLines = doc.splitTextToSize(obsText, 150);
-  doc.text(obsLines, 14, 55);
   doc.setFontSize(12);
+  const obsText = `Observaciones: ${ot.observaciones || "-"}`;
+  const obsLines = doc.splitTextToSize(obsText, 160);
+  doc.text(obsLines, 14, 60);
 
-  const startYRepuestos = 55 + (obsLines.length * 5) + 5;
+  const startYRepuestos = 60 + (obsLines.length * 6) + 5;
 
   const detalles = detalleRepuestos.map(d => [
-    d.descripcion || '-',
+    stripHtml(d.descripcion),
     fmtPDF(d.valor || 0),
     d.cantidad || 1,
     (d.porcentajeRecargo ? d.porcentajeRecargo + "%" : "0%"),
@@ -242,12 +284,24 @@ const generarPDFInterno = (ot) => {
     { content: `$${fmtPDF(totalRepuestos)}`, styles: { fontStyle: 'bold' } }
   ]);
 
+  const tblMargin = { left: 14, right: 14 };
+  const tblStyles = { overflow: 'linebreak', cellPadding: 3, fontSize: 10 };
+
   doc.setFontSize(13);
   doc.text("Trabajos Realizados", 14, startYRepuestos);
   autoTable(doc, {
     startY: startYRepuestos + 5,
     head: [["Descripción", "Valor", "Cantidad", "Recargo (%)", "Total"]],
-    body: detalles
+    body: detalles,
+    margin: tblMargin,
+    styles: tblStyles,
+    columnStyles: {
+      0: { cellWidth: 86 },
+      1: { cellWidth: 28, halign: 'right' },
+      2: { cellWidth: 18, halign: 'center' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 28, halign: 'right' }
+    }
   });
 
   const rep = repuestos.map(r => [
@@ -259,7 +313,7 @@ const generarPDFInterno = (ot) => {
   const totalRep = repuestos.reduce((acc, r) => acc + Number(r.total || r.totalGeneral || 0), 0);
   rep.push([
     { content: "Total Repuestos:", colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
-    { content: `$${fmtPDF(totalRep)}`, styles: { fontStyle: 'bold' } }
+    { content: `$${fmtPDF(totalRep)}`, styles: { halign: 'right', fontStyle: 'bold' } }
   ]);
 
   doc.setFontSize(13);
@@ -267,19 +321,27 @@ const generarPDFInterno = (ot) => {
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 15,
     head: [["Descripción", "Valor", "Recargo (%)", "Total"]],
-    body: rep
+    body: rep,
+    margin: tblMargin,
+    styles: tblStyles,
+    columnStyles: {
+      0: { cellWidth: 98 },
+      1: { cellWidth: 28, halign: 'right' },
+      2: { cellWidth: 28, halign: 'center' },
+      3: { cellWidth: 28, halign: 'right' }
+    }
   });
 
   const terceros = trabajosTerceros.map(tt => [
     tt.descripcionTercero || tt.descripcion || "",
     fmtPDF(tt.valorTercero || tt.valor || 0),
-    tt.porcentajeRecargoTercero ?? tt.porcentajeRecargo ?? 0,
-    `$${fmtPDF(tt.total || 0)}`
+    (tt.porcentajeRecargoTercero ?? tt.porcentajeRecargo ?? 0) + "%",
+    `$${fmtPDF(tt.total || tt.totalTercero || 0)}`
   ]);
   const totalTerceros = trabajosTerceros.reduce((acc, tt) => acc + Number(tt.total || tt.totalTercero || 0), 0);
   terceros.push([
     { content: "Total Trabajos Terceros:", colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
-    { content: `$${fmtPDF(totalTerceros)}`, styles: { fontStyle: 'bold' } }
+    { content: `$${fmtPDF(totalTerceros)}`, styles: { halign: 'right', fontStyle: 'bold' } }
   ]);
 
   doc.setFontSize(13);
@@ -287,7 +349,15 @@ const generarPDFInterno = (ot) => {
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 15,
     head: [["Descripción", "Valor", "Recargo (%)", "Total"]],
-    body: terceros
+    body: terceros,
+    margin: tblMargin,
+    styles: tblStyles,
+    columnStyles: {
+      0: { cellWidth: 98 },
+      1: { cellWidth: 28, halign: 'right' },
+      2: { cellWidth: 28, halign: 'center' },
+      3: { cellWidth: 28, halign: 'right' }
+    }
   });
 
   doc.save(`OrdenTrabajo_Interna_${ot.numeroOrden}.pdf`);
@@ -299,33 +369,31 @@ const generarPDFInterno = (ot) => {
 
     doc.setFontSize(16);
     doc.text("Reporte Orden de Trabajo", 14, 20);
-
     doc.setFontSize(12);
+    doc.text(`Fecha Creación: ${formatearFecha(ot.fechaIngreso)}`, 14, 30);
+
     // Fila 1
-    doc.text(`Número Orden: ${ot.numeroOrden}`, 14, 35);
-    doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 35);
-    doc.text(`Vehículo: ${ot.patenteVehiculo}`, 120, 35);
+    doc.text(`Número Orden: ${ot.numeroOrden}`, 14, 40);
+    doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 40);
+    doc.text(`Vehículo: ${ot.patenteVehiculo}`, 130, 40);
 
     // Fila 2
-    doc.text(`Código: ${ot.codigo}`, 14, 45);
-    doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 75, 45);
-    doc.text(`Estado: ${ot.estado}`, 120, 45);
-
+    doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 50);
+    doc.text(`Estado: ${ot.estado}`, 75, 50);
     // Gauge gráfico de combustible (esquina derecha del encabezado)
     const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
     dibujarGaugeCombustible(doc, 183, 40, 11, nivelCombustible);
 
     // Observaciones
-    doc.setFontSize(11);
-    const obsText = `Observaciones: ${ot.observaciones || "-"}`;
-    const obsLines = doc.splitTextToSize(obsText, 150);
-    doc.text(obsLines, 14, 55);
     doc.setFontSize(12);
+    const obsText = `Observaciones: ${ot.observaciones || "-"}`;
+    const obsLines = doc.splitTextToSize(obsText, 160);
+    doc.text(obsLines, 14, 60);
 
-    const startYRepuestos = 55 + (obsLines.length * 5) + 5;
+    const startYRepuestos = 60 + (obsLines.length * 6) + 5;
 
     const detalles = detalleRepuestos.map(d => [
-      d.descripcion || '-',
+      stripHtml(d.descripcion),
       d.cantidad || 1,
       `$${fmtPDF(d.total || 0)}`
     ]);
@@ -335,12 +403,22 @@ const generarPDFInterno = (ot) => {
       { content: `$${fmtPDF(totalRepuestos)}`, styles: { fontStyle: 'bold' } }
     ]);
 
+    const tblMargin = { left: 14, right: 14 };
+    const tblStyles = { overflow: 'linebreak', cellPadding: 3, fontSize: 10 };
+
     doc.setFontSize(13);
     doc.text("Trabajos Realizados", 14, startYRepuestos);
-    autoTable(doc,{
+    autoTable(doc, {
       startY: startYRepuestos + 5,
       head: [["Descripción", "Cantidad", "Total"]],
-      body: detalles
+      body: detalles,
+      margin: tblMargin,
+      styles: tblStyles,
+      columnStyles: {
+        0: { cellWidth: 136 },
+        1: { cellWidth: 18, halign: 'center' },
+        2: { cellWidth: 28, halign: 'right' }
+      }
     });
 
     const rep = repuestos.map(r => [
@@ -350,33 +428,45 @@ const generarPDFInterno = (ot) => {
     const totalRep = repuestos.reduce((acc, r) => acc + Number(r.total || 0), 0);
     rep.push([
       { content: "Total Repuestos:", colSpan: 1, styles: { halign: 'right', fontStyle: 'bold' } },
-      { content: `$${fmtPDF(totalRep)}`, styles: { fontStyle: 'bold' } }
+      { content: `$${fmtPDF(totalRep)}`, styles: { halign: 'right', fontStyle: 'bold' } }
     ]);
 
     doc.setFontSize(13);
     doc.text("Repuestos", 14, doc.lastAutoTable.finalY + 10);
-    autoTable(doc,{
+    autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 15,
       head: [["Descripción", "Total"]],
-      body: rep
+      body: rep,
+      margin: tblMargin,
+      styles: tblStyles,
+      columnStyles: {
+        0: { cellWidth: 154 },
+        1: { cellWidth: 28, halign: 'right' }
+      }
     });
 
     const terceros = trabajosTerceros.map(tt => [
       tt.descripcionTercero || tt.descripcion || "",
-      `$${fmtPDF(tt.total || 0)}`
+      `$${fmtPDF(tt.total || tt.totalTercero || 0)}`
     ]);
     const totalTerceros = trabajosTerceros.reduce((acc, tt) => acc + Number(tt.total || tt.totalTercero || 0), 0);
     terceros.push([
       { content: "Total Trabajos Terceros:", colSpan: 1, styles: { halign: 'right', fontStyle: 'bold' } },
-      { content: `$${fmtPDF(totalTerceros)}`, styles: { fontStyle: 'bold' } }
+      { content: `$${fmtPDF(totalTerceros)}`, styles: { halign: 'right', fontStyle: 'bold' } }
     ]);
 
     doc.setFontSize(13);
     doc.text("Trabajos Terceros", 14, doc.lastAutoTable.finalY + 10);
-    autoTable(doc,{
+    autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 15,
       head: [["Descripción", "Total"]],
-      body: terceros
+      body: terceros,
+      margin: tblMargin,
+      styles: tblStyles,
+      columnStyles: {
+        0: { cellWidth: 154 },
+        1: { cellWidth: 28, halign: 'right' }
+      }
     });
 
     doc.save(`OrdenTrabajo_${ot.numeroOrden}.pdf`);
@@ -407,6 +497,7 @@ const generarPDFInterno = (ot) => {
             <TableCell>Número Orden</TableCell>
             <TableCell>Cliente</TableCell>
             <TableCell>Vehículo</TableCell>
+            <TableCell>Fecha Creación</TableCell>
             <TableCell>Código</TableCell>
             <TableCell>Valor OT</TableCell>
             <TableCell>Margen OT</TableCell>
@@ -426,7 +517,8 @@ const generarPDFInterno = (ot) => {
               <TableCell>{o.numeroOrden}</TableCell>
               <TableCell>{formatearRut(o.rutCliente)}</TableCell>
               <TableCell>{o.patenteVehiculo}</TableCell>
-              <TableCell>{o.codigo}</TableCell>
+               <TableCell>{formatearFecha(o.fechaIngreso)}</TableCell>
+               <TableCell>{o.codigo}</TableCell>
               <TableCell>${fmt(o.valorOt)}</TableCell>
               <TableCell sx={{ fontWeight: 'bold', color: o.estado === "CERRADO" ? "error.main" : "success.main" }}>
                 ${fmt(calcularMargenOt(o))}
@@ -461,3 +553,4 @@ const generarPDFInterno = (ot) => {
 }
 
 export default ReportesReparaciones;
+
