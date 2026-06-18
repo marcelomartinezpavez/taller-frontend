@@ -67,6 +67,8 @@ function OrdenTrabajoCRUD() {
     }
   };
 
+  const sortById = (arr) => [...arr].sort((a, b) => (a.id || 0) - (b.id || 0));
+
   const obtenerSeccionesOrden = (ot) => {
     const toArr = (v) => Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
 
@@ -74,12 +76,16 @@ function OrdenTrabajoCRUD() {
                              ot.detalleRepuesto  ? toArr(ot.detalleRepuesto) :
                              ot.detalle          ? toArr(ot.detalle) :
                              ot.detalles         ? toArr(ot.detalles) : [];
-    const repuestos = Array.isArray(ot.repuestosOrden) ? ot.repuestosOrden :
-                      Array.isArray(ot.repuestos) ? ot.repuestos :
-                      Array.isArray(ot.repuesto) ? ot.repuesto : [];
-    const trabajosTerceros = Array.isArray(ot.trabajosTerceros) ? ot.trabajosTerceros :
-                             Array.isArray(ot.trabajoTercero) ? ot.trabajoTercero :
-                             Array.isArray(ot.trabajosTercero) ? ot.trabajosTercero : [];
+    const repuestos = sortById(
+      Array.isArray(ot.repuestosOrden) ? ot.repuestosOrden :
+      Array.isArray(ot.repuestos) ? ot.repuestos :
+      Array.isArray(ot.repuesto) ? ot.repuesto : []
+    );
+    const trabajosTerceros = sortById(
+      Array.isArray(ot.trabajosTerceros) ? ot.trabajosTerceros :
+      Array.isArray(ot.trabajoTercero) ? ot.trabajoTercero :
+      Array.isArray(ot.trabajosTercero) ? ot.trabajosTercero : []
+    );
 
     return { detalleRepuestos, repuestos, trabajosTerceros };
   };
@@ -270,7 +276,9 @@ function OrdenTrabajoCRUD() {
     const repuestosOrdenRaw = orden.repuestosOrden || orden.trabajosGenerales || orden.trabajoGeneral || orden.trabajosGeneral || [];
     const trabajosTercerosRaw = orden.trabajosTerceros || orden.trabajoTercero || orden.trabajosTercero || [];
 
-    const repuestosOrden = (Array.isArray(repuestosOrdenRaw) ? repuestosOrdenRaw : []).map(ro => ({
+    const repuestosOrden = [...(Array.isArray(repuestosOrdenRaw) ? repuestosOrdenRaw : [])]
+      .sort((a, b) => (a.id || 0) - (b.id || 0))
+      .map(ro => ({
       descripcion: ro.descripcion || ro.descripcionGeneral || ro.descripcion || "",
       porcentajeRecargo: ro.porcentajeRecargo || ro.porcentajeRecargoGeneral || ro.porcentajeRecargo || "",
       valor: ro.valor || ro.valorGeneral || ro.valor || ro.monto || "",
@@ -279,7 +287,9 @@ function OrdenTrabajoCRUD() {
       prestadorServicio: ro.prestadorServicio || ro.prestadorServicioGeneral || ro.prestadorServicio || ""
     }));
 
-    const trabajosTerceros = (Array.isArray(trabajosTercerosRaw) ? trabajosTercerosRaw : []).map(tt => ({
+    const trabajosTerceros = [...(Array.isArray(trabajosTercerosRaw) ? trabajosTercerosRaw : [])]
+      .sort((a, b) => (a.id || 0) - (b.id || 0))
+      .map(tt => ({
       descripcionTercero: tt.descripcionTercero || tt.descripcion || "",
       porcentajeRecargoTercero: tt.porcentajeRecargoTercero || tt.porcentajeRecargo || "",
       valorTercero: tt.valorTercero || tt.valor || tt.monto || "",

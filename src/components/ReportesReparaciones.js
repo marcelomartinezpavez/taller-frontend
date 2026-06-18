@@ -90,6 +90,8 @@ function ReportesReparaciones() {
     return t.replace(/\n{3,}/g, '\n\n').trim() || '-';
   };
 
+const sortById = (arr) => [...arr].sort((a, b) => (a.id || 0) - (b.id || 0));
+
 const obtenerSeccionesOrden = (ot) => {
   const toArr = (v) => Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
 
@@ -97,12 +99,16 @@ const obtenerSeccionesOrden = (ot) => {
                            ot.detalleRepuesto  ? toArr(ot.detalleRepuesto) :
                            ot.detalle          ? toArr(ot.detalle) :
                            ot.detalles         ? toArr(ot.detalles) : [];
-  const repuestos = Array.isArray(ot.repuestosOrden) ? ot.repuestosOrden :
-                    Array.isArray(ot.repuestos) ? ot.repuestos :
-                    Array.isArray(ot.repuesto) ? ot.repuesto : [];
-  const trabajosTerceros = Array.isArray(ot.trabajosTerceros) ? ot.trabajosTerceros :
-                           Array.isArray(ot.trabajoTercero) ? ot.trabajoTercero :
-                           Array.isArray(ot.trabajosTercero) ? ot.trabajosTercero : [];
+  const repuestos = sortById(
+    Array.isArray(ot.repuestosOrden) ? ot.repuestosOrden :
+    Array.isArray(ot.repuestos) ? ot.repuestos :
+    Array.isArray(ot.repuesto) ? ot.repuesto : []
+  );
+  const trabajosTerceros = sortById(
+    Array.isArray(ot.trabajosTerceros) ? ot.trabajosTerceros :
+    Array.isArray(ot.trabajoTercero) ? ot.trabajoTercero :
+    Array.isArray(ot.trabajosTercero) ? ot.trabajosTercero : []
+  );
 
   return { detalleRepuestos, repuestos, trabajosTerceros };
 };
