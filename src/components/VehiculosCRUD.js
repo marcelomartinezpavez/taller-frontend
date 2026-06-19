@@ -149,8 +149,14 @@ function VehiculosCRUD() {
     setPage(0);
   };
 
+  const getNombreDueno = (rutDueno) => {
+    const cliente = clientes.find(c => c.rut === rutDueno);
+    return cliente ? `${cliente.nombre} ${cliente.apellido}` : "-";
+  };
+
   const vehiculosFiltrados = vehiculos.filter((v) => {
-    const texto = `${v.marca} ${v.modelo} ${v.patente} ${v.color} ${v.anio} ${v.rutDueno}`.toLowerCase();
+    const nombreDueno = getNombreDueno(v.rutDueno);
+    const texto = `${v.marca} ${v.modelo} ${v.patente} ${v.color} ${v.anio} ${v.rutDueno} ${nombreDueno}`.toLowerCase();
     return texto.includes(search.toLowerCase());
   });
 
@@ -197,16 +203,8 @@ function VehiculosCRUD() {
           <Grid item xs={12} sm={6} md={4}>
             <Autocomplete
               fullWidth
-              sx={{
-                "& .MuiAutocomplete-inputRoot .MuiAutocomplete-input": {
-                  width: "20%",
-                  minWidth: "80%"
-                }
-              }}
-
-
               options={clientes}
-              getOptionLabel={(cliente) => `${cliente.nombre} ${cliente.apellido} - ${cliente.rut}`}
+              getOptionLabel={(cliente) => `${cliente.nombre} ${cliente.apellido} - ${formatearRut(cliente.rut)}`}
               value={clientes.find(c => c.rut === formData.rutDueno) || null}
               onChange={(event, newValue) => {
                 setFormData({ ...formData, rutDueno: newValue ? newValue.rut : "" });
@@ -216,8 +214,8 @@ function VehiculosCRUD() {
                 <TextField
                   {...params}
                   fullWidth
-                  label="Rut Dueño"
-                  placeholder="Buscar"
+                  label="Dueño"
+                  placeholder="Buscar por nombre o RUT"
                   InputLabelProps={{ shrink: true }}
                   InputProps={{
                     ...params.InputProps,
@@ -275,6 +273,7 @@ function VehiculosCRUD() {
                 <TableCell>Color</TableCell>
                 <TableCell>Año</TableCell>
                 <TableCell>Rut Dueño</TableCell>
+                <TableCell>Nombre Dueño</TableCell>
                 <TableCell>Acciones</TableCell>
               </TableRow>
             </TableHead>
@@ -289,6 +288,7 @@ function VehiculosCRUD() {
                     <TableCell>{v.color}</TableCell>
                     <TableCell>{v.anio}</TableCell>
                     <TableCell>{formatearRut(v.rutDueno)}</TableCell>
+                    <TableCell>{getNombreDueno(v.rutDueno)}</TableCell>
                     <TableCell>
                       <Button
                         size="small"

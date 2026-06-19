@@ -3,7 +3,7 @@ import api from "../services/api";
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import {
-  Paper, Typography, Box, TextField, Button,
+  Paper, Typography, Box, TextField, Button, Autocomplete,
   Select, MenuItem, InputLabel, FormControl,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Grid, Slider,
   Dialog, DialogTitle, DialogContent, DialogActions, Divider, IconButton, Chip
@@ -117,6 +117,7 @@ function OrdenTrabajoCRUD() {
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
+  const [allVehiculos, setAllVehiculos] = useState([]);
   const [repuestos, setRepuestos] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -234,7 +235,7 @@ function OrdenTrabajoCRUD() {
 
   const cargarVehiculos = () => {
     api.get("/vehiculos/all")
-      .then(res => setVehiculos(res.data))
+      .then(res => { setVehiculos(res.data); setAllVehiculos(res.data); })
       .catch(err => console.error(err));
   };
 
@@ -559,9 +560,21 @@ function OrdenTrabajoCRUD() {
     setPage(0);
   };
 
+  const getNombreCliente = (rutCliente) => {
+    const c = clientes.find(c => c.rut === rutCliente);
+    return c ? `${c.nombre} ${c.apellido}` : "-";
+  };
+
+  const getMarcaModelo = (patente) => {
+    const v = allVehiculos.find(v => v.patente === patente);
+    return v ? `${v.marca} ${v.modelo}` : "-";
+  };
+
   const ordenesFiltradas = ordenes
     .filter((o) => {
-      const texto = `${o.numeroOrden} ${o.rutCliente} ${o.patenteVehiculo} ${o.kilometrajeVehiculoActual || ""} ${o.valorOt} ${o.estado}`.toLowerCase();
+      const nombreCliente = getNombreCliente(o.rutCliente);
+      const marcaModelo = getMarcaModelo(o.patenteVehiculo);
+      const texto = `${o.numeroOrden} ${o.rutCliente} ${nombreCliente} ${o.patenteVehiculo} ${marcaModelo} ${o.kilometrajeVehiculoActual || ""} ${o.valorOt} ${o.estado}`.toLowerCase();
       return texto.includes(search.toLowerCase());
     })
     .sort((a, b) => {
@@ -642,40 +655,45 @@ function OrdenTrabajoCRUD() {
             />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <FormControl fullWidth sx={selectFieldSx}>
-              <InputLabel shrink>Cliente</InputLabel>
-              <Select value={formData.rutCliente}
-                label="Cliente"
-                displayEmpty
-                onChange={e => setFormData({ ...formData, rutCliente: e.target.value, patenteVehiculo: "" })} >
-                <MenuItem value="" disabled>Selecciona un cliente</MenuItem>
-                {clientes.map(c => (
-                  <MenuItem key={c.id} value={c.rut}>
-                    {c.nombre} {c.apellido} - {c.rut}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              fullWidth
+              options={clientes}
+              getOptionLabel={(c) => `${c.nombre} ${c.apellido} - ${formatearRut(c.rut)}`}
+              value={clientes.find(c => c.rut === formData.rutCliente) || null}
+              onChange={(event, newValue) => {
+                setFormData({ ...formData, rutCliente: newValue ? newValue.rut : "", patenteVehiculo: "" });
+              }}
+              isOptionEqualToValue={(option, value) => option.rut === value.rut}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Cliente"
+                  placeholder="Buscar por nombre o RUT"
+                  InputLabelProps={{ shrink: true }}
+                />
+              )}
+            />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <FormControl fullWidth sx={selectFieldSx}>
-              <InputLabel shrink>Vehículo</InputLabel>
-              <Select
-                value={formData.patenteVehiculo}
-                label="Vehículo"
-                displayEmpty
-                onChange={e => setFormData({ ...formData, patenteVehiculo: e.target.value })}
-              >
-                <MenuItem value="" disabled>Selecciona un vehículo</MenuItem>
-                {vehiculos
-                  .filter(v => v.rutDueno === formData.rutCliente)
-                  .map(v => (
-                    <MenuItem key={v.id} value={v.patente}>
-                      {v.marca} {v.modelo} - {v.patente}
-                    </MenuItem>
-                  ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              fullWidth
+              options={vehiculos.filter(v => v.rutDueno === formData.rutCliente)}
+              getOptionLabel={(v) => `${v.marca} ${v.modelo} - ${v.patente}`}
+              value={allVehiculos.find(v => v.patente === formData.patenteVehiculo) || null}
+              onChange={(event, newValue) => {
+                setFormData({ ...formData, patenteVehiculo: newValue ? newValue.patente : "" });
+              }}
+              isOptionEqualToValue={(option, value) => option.patente === value.patente}
+              disabled={!formData.rutCliente}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Vehículo"
+                  placeholder="Buscar por marca, modelo o patente"
+                  InputLabelProps={{ shrink: true }}
+                />
+              )}
+            />
           </Grid>
 
           {/* Fila 2 */}
@@ -1007,7 +1025,9 @@ function OrdenTrabajoCRUD() {
               <TableRow>
                 <TableCell>Número Orden</TableCell>
                 <TableCell>Cliente (RUT)</TableCell>
+                <TableCell>Nombre Cliente</TableCell>
                 <TableCell>Vehículo</TableCell>
+                <TableCell>Marca/Modelo</TableCell>
                 <TableCell>Kilometraje</TableCell>
                 <TableCell>Valor OT</TableCell>
                 <TableCell>Fecha Creación</TableCell>
@@ -1028,7 +1048,9 @@ function OrdenTrabajoCRUD() {
                   >
                     <TableCell>{o.numeroOrden}</TableCell>
                     <TableCell>{formatearRut(o.rutCliente)}</TableCell>
+                    <TableCell>{getNombreCliente(o.rutCliente)}</TableCell>
                     <TableCell>{o.patenteVehiculo}</TableCell>
+                    <TableCell>{getMarcaModelo(o.patenteVehiculo)}</TableCell>
                     <TableCell>{o.kilometrajeVehiculoActual ? fmt(o.kilometrajeVehiculoActual) : "-"}</TableCell>
                     <TableCell>${fmt(o.valorOt)}</TableCell>
                     <TableCell>
@@ -1154,10 +1176,12 @@ function OrdenTrabajoCRUD() {
                 <Box sx={{ flex: '1 1 200px' }}>
                   <Typography variant="body2" color="text.secondary">Cliente</Typography>
                   <Typography>{formatearRut(modalVisualizar.orden.rutCliente)}</Typography>
+                  <Typography variant="body2" color="text.secondary">{getNombreCliente(modalVisualizar.orden.rutCliente)}</Typography>
                 </Box>
                 <Box sx={{ flex: '1 1 200px' }}>
                   <Typography variant="body2" color="text.secondary">Vehículo</Typography>
                   <Typography>{modalVisualizar.orden.patenteVehiculo}</Typography>
+                  <Typography variant="body2" color="text.secondary">{getMarcaModelo(modalVisualizar.orden.patenteVehiculo)}</Typography>
                 </Box>
                 <Box sx={{ flex: '1 1 200px' }}>
                   <Typography variant="body2" color="text.secondary">Código</Typography>

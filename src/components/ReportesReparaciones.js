@@ -11,6 +11,8 @@ import { formatearRut, validarRut } from "../utils/validar";
 
 function ReportesReparaciones() {
   const [ordenes, setOrdenes] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [allVehiculos, setAllVehiculos] = useState([]);
   const [filtroCliente, setFiltroCliente] = useState("");
   const [filtroPatente, setFiltroPatente] = useState("");
 
@@ -37,17 +39,30 @@ function ReportesReparaciones() {
     }
   };
   useEffect(() => {
-    api.get("/ordenTrabajo/all")
-      .then(res => setOrdenes(res.data))
-      .catch(err => console.error(err));
+    api.get("/ordenTrabajo/all").then(res => setOrdenes(res.data)).catch(err => console.error(err));
+    api.get("/clientes/all").then(res => setClientes(res.data)).catch(err => console.error(err));
+    api.get("/vehiculos/all").then(res => setAllVehiculos(res.data)).catch(err => console.error(err));
   }, []);
 
-  // Filtrar por cliente o patente y ordenar (ABIERTA primero)
+  const getNombreCliente = (rutCliente) => {
+    const c = clientes.find(c => c.rut === rutCliente);
+    return c ? `${c.nombre} ${c.apellido}` : "-";
+  };
+
+  const getMarcaModelo = (patente) => {
+    const v = allVehiculos.find(v => v.patente === patente);
+    return v ? `${v.marca} ${v.modelo}` : "-";
+  };
+
+  // Filtrar por cliente (RUT o nombre) o patente y ordenar (ABIERTA primero)
   const ordenesFiltradas = ordenes
-    .filter(o =>
-      (filtroCliente ? o.rutCliente.includes(filtroCliente) : true) &&
-      (filtroPatente ? o.patenteVehiculo.includes(filtroPatente) : true)
-    )
+    .filter(o => {
+      const nombreCliente = getNombreCliente(o.rutCliente);
+      return (filtroCliente
+        ? o.rutCliente.includes(filtroCliente) || nombreCliente.toLowerCase().includes(filtroCliente.toLowerCase())
+        : true) &&
+        (filtroPatente ? o.patenteVehiculo.toUpperCase().includes(filtroPatente.toUpperCase()) : true);
+    })
     .sort((a, b) => {
       if (a.estado === "ABIERTA" && b.estado !== "ABIERTA") return -1;
       if (a.estado !== "ABIERTA" && b.estado === "ABIERTA") return 1;
@@ -258,13 +273,19 @@ const generarPDFInterno = (ot) => {
   doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 40);
   doc.text(`Vehículo: ${ot.patenteVehiculo}`, 130, 40);
 
+  // Fila 1b - Nombre y Marca/Modelo
+  doc.setFontSize(10);
+  doc.text(`${getNombreCliente(ot.rutCliente)}`, 75, 47);
+  doc.text(`${getMarcaModelo(ot.patenteVehiculo)}`, 130, 47);
+  doc.setFontSize(12);
+
   // Fila 2
-  doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 50);
+  doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 55);
   const margenOt = calcularMargenOt(ot);
   doc.setTextColor(0, 100, 0);
-  doc.text(`Margen OT: $${fmtPDF(margenOt)}`, 75, 50);
+  doc.text(`Margen OT: $${fmtPDF(margenOt)}`, 75, 55);
   doc.setTextColor(0, 0, 0);
-  doc.text(`Estado: ${ot.estado}`, 130, 50);
+  doc.text(`Estado: ${ot.estado}`, 130, 55);
   // Gauge gráfico de combustible (esquina derecha del encabezado)
   const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
   dibujarGaugeCombustible(doc, 183, 40, 11, nivelCombustible);
@@ -273,9 +294,9 @@ const generarPDFInterno = (ot) => {
   doc.setFontSize(12);
   const obsText = `Observaciones: ${ot.observaciones || "-"}`;
   const obsLines = doc.splitTextToSize(obsText, 160);
-  doc.text(obsLines, 14, 60);
+  doc.text(obsLines, 14, 65);
 
-  const startYRepuestos = 60 + (obsLines.length * 6) + 5;
+  const startYRepuestos = 65 + (obsLines.length * 6) + 5;
 
   const detalles = detalleRepuestos.map(d => [
     stripHtml(d.descripcion),
@@ -383,9 +404,15 @@ const generarPDFInterno = (ot) => {
     doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 40);
     doc.text(`Vehículo: ${ot.patenteVehiculo}`, 130, 40);
 
+    // Fila 1b - Nombre y Marca/Modelo
+    doc.setFontSize(10);
+    doc.text(`${getNombreCliente(ot.rutCliente)}`, 75, 47);
+    doc.text(`${getMarcaModelo(ot.patenteVehiculo)}`, 130, 47);
+    doc.setFontSize(12);
+
     // Fila 2
-    doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 50);
-    doc.text(`Estado: ${ot.estado}`, 75, 50);
+    doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 55);
+    doc.text(`Estado: ${ot.estado}`, 75, 55);
     // Gauge gráfico de combustible (esquina derecha del encabezado)
     const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
     dibujarGaugeCombustible(doc, 183, 40, 11, nivelCombustible);
@@ -394,9 +421,9 @@ const generarPDFInterno = (ot) => {
     doc.setFontSize(12);
     const obsText = `Observaciones: ${ot.observaciones || "-"}`;
     const obsLines = doc.splitTextToSize(obsText, 160);
-    doc.text(obsLines, 14, 60);
+    doc.text(obsLines, 14, 65);
 
-    const startYRepuestos = 60 + (obsLines.length * 6) + 5;
+    const startYRepuestos = 65 + (obsLines.length * 6) + 5;
 
     const detalles = detalleRepuestos.map(d => [
       stripHtml(d.descripcion),
@@ -501,8 +528,10 @@ const generarPDFInterno = (ot) => {
         <TableHead>
           <TableRow>
             <TableCell>Número Orden</TableCell>
-            <TableCell>Cliente</TableCell>
+            <TableCell>Cliente (RUT)</TableCell>
+            <TableCell>Nombre Cliente</TableCell>
             <TableCell>Vehículo</TableCell>
+            <TableCell>Marca/Modelo</TableCell>
             <TableCell>Fecha Creación</TableCell>
             <TableCell>Código</TableCell>
             <TableCell>Valor OT</TableCell>
@@ -522,8 +551,10 @@ const generarPDFInterno = (ot) => {
             >
               <TableCell>{o.numeroOrden}</TableCell>
               <TableCell>{formatearRut(o.rutCliente)}</TableCell>
+              <TableCell>{getNombreCliente(o.rutCliente)}</TableCell>
               <TableCell>{o.patenteVehiculo}</TableCell>
-               <TableCell>{formatearFecha(o.fechaIngreso)}</TableCell>
+              <TableCell>{getMarcaModelo(o.patenteVehiculo)}</TableCell>
+              <TableCell>{formatearFecha(o.fechaIngreso)}</TableCell>
                <TableCell>{o.codigo}</TableCell>
               <TableCell>${fmt(o.valorOt)}</TableCell>
               <TableCell sx={{ fontWeight: 'bold', color: o.estado === "CERRADO" ? "error.main" : "success.main" }}>
