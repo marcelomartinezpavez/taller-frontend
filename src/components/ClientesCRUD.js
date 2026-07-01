@@ -21,6 +21,7 @@ function ClientesCRUD() {
     habilitado: true
   });
   const [editMode, setEditMode] = useState(false);
+  const [originalRut, setOriginalRut] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
@@ -45,9 +46,12 @@ function ClientesCRUD() {
     setRutError("");
     
     if (editMode) {
-      api.put("/clientes/update", formData)
+      const rutCambio = formData.rut !== originalRut;
+      const endpoint = rutCambio ? "/clientes/changeRut" : "/clientes/update";
+      const payload = rutCambio ? { ...formData, oldRut: originalRut } : formData;
+      api.put(endpoint, payload)
         .then(() => { cargarClientes(); resetForm(); mostrarExito("Cliente actualizado exitosamente"); })
-        .catch(err => { console.error(err); mostrarError("Error al actualizar cliente"); });
+        .catch(err => { console.error(err); mostrarError(err.response?.data || "Error al actualizar cliente"); });
     } else {
       api.post("/clientes/insert", formData)
         .then(() => { cargarClientes(); resetForm(); mostrarExito("Cliente creado exitosamente"); })
@@ -68,6 +72,7 @@ function ClientesCRUD() {
       email: cliente.email,
       habilitado: cliente.habilitado
     });
+    setOriginalRut(cliente.rut);
     setEditMode(true);
   };
 
@@ -91,6 +96,7 @@ function ClientesCRUD() {
       habilitado: true
     });
     setEditMode(false);
+    setOriginalRut("");
     setRutError("");
   };
 
@@ -119,7 +125,7 @@ function ClientesCRUD() {
               fullWidth
               label="Nombre"
               value={formData.nombre}
-              onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+              onChange={e => setFormData({ ...formData, nombre: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
@@ -127,7 +133,7 @@ function ClientesCRUD() {
               fullWidth
               label="Apellido"
               value={formData.apellido}
-              onChange={e => setFormData({ ...formData, apellido: e.target.value })}
+              onChange={e => setFormData({ ...formData, apellido: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
@@ -136,7 +142,7 @@ function ClientesCRUD() {
               label="RUT"
               value={formData.rut}
               onChange={e => {
-                const valor = e.target.value;
+                const valor = e.target.value.toUpperCase();
                 setFormData({ ...formData, rut: valor });
                 if (valor.length >= 2) {
                   const resultado = validarRut(valor);
@@ -154,7 +160,7 @@ function ClientesCRUD() {
               fullWidth
               label="Dirección"
               value={formData.direccion}
-              onChange={e => setFormData({ ...formData, direccion: e.target.value })}
+              onChange={e => setFormData({ ...formData, direccion: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -162,7 +168,7 @@ function ClientesCRUD() {
               fullWidth
               label="Comuna"
               value={formData.comuna}
-              onChange={e => setFormData({ ...formData, comuna: e.target.value })}
+              onChange={e => setFormData({ ...formData, comuna: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -170,7 +176,7 @@ function ClientesCRUD() {
               fullWidth
               label="Ciudad"
               value={formData.ciudad}
-              onChange={e => setFormData({ ...formData, ciudad: e.target.value })}
+              onChange={e => setFormData({ ...formData, ciudad: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
@@ -178,7 +184,7 @@ function ClientesCRUD() {
               fullWidth
               label="Teléfono"
               value={formData.telefono}
-              onChange={e => setFormData({ ...formData, telefono: e.target.value })}
+              onChange={e => setFormData({ ...formData, telefono: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={8}>
@@ -186,7 +192,7 @@ function ClientesCRUD() {
               fullWidth
               label="Email"
               value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
+              onChange={e => setFormData({ ...formData, email: e.target.value.toUpperCase() })}
             />
           </Grid>
           <Grid item xs={12}>

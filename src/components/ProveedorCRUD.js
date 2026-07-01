@@ -118,19 +118,19 @@ function ProveedorCRUD() {
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Nombre" value={formData.nombre}
-              onChange={e => setFormData({ ...formData, nombre: e.target.value })} />
+              onChange={e => setFormData({ ...formData, nombre: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Apellido" value={formData.apellido}
-              onChange={e => setFormData({ ...formData, apellido: e.target.value })} />
+              onChange={e => setFormData({ ...formData, apellido: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <TextField 
-              fullWidth 
-              label="RUT *" 
+            <TextField
+              fullWidth
+              label="RUT *"
               value={formData.rut}
               onChange={e => {
-                const valor = e.target.value;
+                const valor = e.target.value.toUpperCase();
                 setFormData({ ...formData, rut: valor });
                 if (valor.length >= 2) {
                   const resultado = validarRut(valor);
@@ -145,23 +145,23 @@ function ProveedorCRUD() {
           </Grid>
           <Grid item xs={12} sm={6} md={6}>
             <TextField fullWidth label="Dirección" value={formData.direccion}
-              onChange={e => setFormData({ ...formData, direccion: e.target.value })} />
+              onChange={e => setFormData({ ...formData, direccion: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Comuna" value={formData.comuna}
-              onChange={e => setFormData({ ...formData, comuna: e.target.value })} />
+              onChange={e => setFormData({ ...formData, comuna: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Ciudad" value={formData.ciudad}
-              onChange={e => setFormData({ ...formData, ciudad: e.target.value })} />
+              onChange={e => setFormData({ ...formData, ciudad: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Teléfono" value={formData.telefono}
-              onChange={e => setFormData({ ...formData, telefono: e.target.value })} />
+              onChange={e => setFormData({ ...formData, telefono: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={8}>
             <TextField fullWidth label="Email" value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })} />
+              onChange={e => setFormData({ ...formData, email: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12}>
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>

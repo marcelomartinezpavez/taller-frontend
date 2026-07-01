@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
-import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon } from "@mui/material";
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon, createTheme, ThemeProvider } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PeopleIcon from "@mui/icons-material/People";
@@ -21,6 +21,32 @@ import ReportesReparaciones from "./components/ReportesReparaciones";
 import RepuestosCRUD from "./components/RepuestosCRUD";
 import ProveedorCRUD from "./components/ProveedorCRUD";
 import AgendaCRUD from "./components/AgendaCRUD";
+
+const theme = createTheme({
+  components: {
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          textTransform: "uppercase",
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        body: {
+          textTransform: "uppercase",
+        },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        option: {
+          textTransform: "uppercase",
+        },
+      },
+    },
+  },
+});
 
 const menuItems = [
   { text: "Dashboard", path: "/", icon: <DashboardIcon /> },
@@ -144,9 +170,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <Router>
-      <AppRoutes />
-    </Router>
+    <ThemeProvider theme={theme}>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </ThemeProvider>
   );
 }
 

@@ -115,19 +115,19 @@ function RepuestoCRUD() {
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Nombre" value={formData.nombre}
-              onChange={e => setFormData({ ...formData, nombre: e.target.value })} />
+              onChange={e => setFormData({ ...formData, nombre: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Código" value={formData.codigo}
-              onChange={e => setFormData({ ...formData, codigo: e.target.value })} />
+              onChange={e => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Marca" value={formData.marca}
-              onChange={e => setFormData({ ...formData, marca: e.target.value })} />
+              onChange={e => setFormData({ ...formData, marca: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Modelo" value={formData.modelo}
-              onChange={e => setFormData({ ...formData, modelo: e.target.value })} />
+              onChange={e => setFormData({ ...formData, modelo: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={2}>
             <TextField fullWidth label="Año" value={formData.anio}

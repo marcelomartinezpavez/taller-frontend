@@ -681,7 +681,12 @@ function OrdenTrabajoCRUD() {
               getOptionLabel={(v) => `${v.marca} ${v.modelo} - ${v.patente}`}
               value={allVehiculos.find(v => v.patente === formData.patenteVehiculo) || null}
               onChange={(event, newValue) => {
-                setFormData({ ...formData, patenteVehiculo: newValue ? newValue.patente : "" });
+                if (newValue) {
+                  // Siempre registrar el dueño actual del vehículo como cliente de la orden
+                  setFormData(prev => ({ ...prev, patenteVehiculo: newValue.patente, rutCliente: newValue.rutDueno }));
+                } else {
+                  setFormData(prev => ({ ...prev, patenteVehiculo: "" }));
+                }
               }}
               isOptionEqualToValue={(option, value) => option.patente === value.patente}
               disabled={!formData.rutCliente}
@@ -765,7 +770,7 @@ function OrdenTrabajoCRUD() {
             inputProps={{ maxLength: 4000 }}
             label="Solicitud de cliente"
             value={formData.observaciones || ""}
-            onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+            onChange={e => setFormData({ ...formData, observaciones: e.target.value.toUpperCase() })}
             helperText={`${(formData.observaciones || '').length}/4000 caracteres`}
           />
         </Box>
@@ -779,7 +784,7 @@ function OrdenTrabajoCRUD() {
         </Box>
         <Box sx={{ mb: 2 }}>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>Descripción Detallada (Formato Word)</Typography>
-          <Box sx={{ "& .ql-container": { minHeight: "150px", fontSize: "1rem" }, backgroundColor: "white" }}>
+          <Box sx={{ "& .ql-container": { minHeight: "150px", fontSize: "1rem" }, "& .ql-editor": { textTransform: "uppercase" }, backgroundColor: "white" }}>
             <ReactQuill 
               theme="snow" 
               modules={quillModules}
@@ -823,7 +828,7 @@ function OrdenTrabajoCRUD() {
         </Box>
         <Box sx={{ mb: 2 }}>
           <TextField fullWidth multiline rows={2} label="Descripción" value={repuestoOrdenTemp.descripcion}
-            onChange={e => actualizarRepuestoOrdenTemp("descripcion", e.target.value)} />
+            onChange={e => actualizarRepuestoOrdenTemp("descripcion", e.target.value.toUpperCase())} />
         </Box>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={6} md={2}>
@@ -843,7 +848,7 @@ function OrdenTrabajoCRUD() {
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Prestador Servicio" value={repuestoOrdenTemp.prestadorServicio}
-              onChange={e => actualizarRepuestoOrdenTemp("prestadorServicio", e.target.value)} />
+              onChange={e => actualizarRepuestoOrdenTemp("prestadorServicio", e.target.value.toUpperCase())} />
           </Grid>
           <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
             <Button variant="outlined" color="primary" sx={{ height: 56, minWidth: 200 }} onClick={agregarRepuestoOrden}>Agregar Nuevo</Button>
@@ -866,7 +871,7 @@ function OrdenTrabajoCRUD() {
         </Box>
         <Box sx={{ mb: 2 }}>
           <TextField fullWidth multiline rows={2} label="Descripción" value={trabajoTerceroTemp.descripcionTercero}
-            onChange={e => actualizarTrabajoTerceroTemp("descripcionTercero", e.target.value)} />
+            onChange={e => actualizarTrabajoTerceroTemp("descripcionTercero", e.target.value.toUpperCase())} />
         </Box>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={6} md={3}>
@@ -882,7 +887,7 @@ function OrdenTrabajoCRUD() {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Prestador Servicio" value={trabajoTerceroTemp.prestadorServicioTercero}
-              onChange={e => actualizarTrabajoTerceroTemp("prestadorServicioTercero", e.target.value)} />
+              onChange={e => actualizarTrabajoTerceroTemp("prestadorServicioTercero", e.target.value.toUpperCase())} />
           </Grid>
           <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
             <Button variant="outlined" color="primary" sx={{ height: 56, minWidth: 200 }} onClick={agregarTrabajoTercero}>Agregar Nuevo</Button>

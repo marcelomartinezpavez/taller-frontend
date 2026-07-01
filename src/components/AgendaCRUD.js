@@ -246,11 +246,11 @@ function AgendaCRUD() {
   };
 
   const handleClienteChange = (field, value) => {
-    setClienteData(prev => ({ ...prev, [field]: value }));
+    setClienteData(prev => ({ ...prev, [field]: typeof value === "string" ? value.toUpperCase() : value }));
   };
 
   const handleVehiculoChange = (field, value) => {
-    setVehiculoData(prev => ({ ...prev, [field]: value }));
+    setVehiculoData(prev => ({ ...prev, [field]: typeof value === "string" ? value.toUpperCase() : value }));
   };
 
   const agendasFiltradas = agendas
@@ -394,7 +394,7 @@ function AgendaCRUD() {
               fullWidth
               label="Observación"
               value={formData.observacion}
-              onChange={e => handleChange("observacion", e.target.value)}
+              onChange={e => handleChange("observacion", e.target.value.toUpperCase())}
               multiline
               rows={2}
             />

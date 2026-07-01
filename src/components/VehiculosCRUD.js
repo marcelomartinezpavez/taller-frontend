@@ -29,6 +29,7 @@ function VehiculosCRUD() {
     habilitado: true
   });
   const [editMode, setEditMode] = useState(false);
+  const [originalPatente, setOriginalPatente] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
@@ -40,12 +41,37 @@ function VehiculosCRUD() {
     nombre: "", apellido: "", rut: "", direccion: "",
     comuna: "", ciudad: "", telefono: "", email: "", habilitado: true
   });
+  const [modalCambiarDueno, setModalCambiarDueno] = useState({ open: false, vehiculo: null });
+  const [nuevoDueno, setNuevoDueno] = useState(null);
 
   const handleOpenModal = () => setOpenModalCliente(true);
   const handleCloseModal = () => {
     setOpenModalCliente(false);
     setRutModalError("");
     setNuevoCliente({ nombre: "", apellido: "", rut: "", direccion: "", comuna: "", ciudad: "", telefono: "", email: "", habilitado: true });
+  };
+
+  const abrirCambiarDueno = (veh) => {
+    setNuevoDueno(null);
+    setModalCambiarDueno({ open: true, vehiculo: veh });
+  };
+
+  const cerrarCambiarDueno = () => {
+    setModalCambiarDueno({ open: false, vehiculo: null });
+    setNuevoDueno(null);
+  };
+
+  const confirmarCambiarDueno = () => {
+    if (!nuevoDueno) return;
+    const veh = modalCambiarDueno.vehiculo;
+    const payload = { ...veh, rutDueno: nuevoDueno.rut };
+    api.put("/vehiculos/update", payload)
+      .then(() => {
+        cargarVehiculos();
+        cerrarCambiarDueno();
+        mostrarExito("Dueño actualizado. Las órdenes anteriores conservan su cliente original.");
+      })
+      .catch(err => { console.error(err); mostrarError("Error al cambiar dueño"); });
   };
 
   const guardarNuevoCliente = () => {
@@ -89,9 +115,12 @@ function VehiculosCRUD() {
     }
     setPatenteError("");
     if (editMode) {
-      api.put("/vehiculos/update", formData)
+      const patenteCambio = formData.patente !== originalPatente;
+      const endpoint = patenteCambio ? "/vehiculos/changePatente" : "/vehiculos/update";
+      const payload = patenteCambio ? { ...formData, oldPatente: originalPatente } : formData;
+      api.put(endpoint, payload)
         .then(() => { cargarVehiculos(); resetForm(); mostrarExito("Vehículo actualizado exitosamente"); })
-        .catch(err => { console.error(err); mostrarError("Error al actualizar vehículo"); });
+        .catch(err => { console.error(err); mostrarError(err.response?.data || "Error al actualizar vehículo"); });
     } else {
       api.post("/vehiculos/insert", formData)
         .then(() => { cargarVehiculos(); resetForm(); mostrarExito("Vehículo creado exitosamente"); })
@@ -113,6 +142,7 @@ function VehiculosCRUD() {
       kilometraje: veh.kilometraje,
       habilitado: veh.habilitado
     });
+    setOriginalPatente(veh.patente);
     setEditMode(true);
   };
 
@@ -137,6 +167,7 @@ function VehiculosCRUD() {
       habilitado: true
     });
     setEditMode(false);
+    setOriginalPatente("");
     setPatenteError("");
   };
 
@@ -168,11 +199,11 @@ function VehiculosCRUD() {
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Marca" value={formData.marca}
-              onChange={e => setFormData({ ...formData, marca: e.target.value })} />
+              onChange={e => setFormData({ ...formData, marca: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Modelo" value={formData.modelo}
-              onChange={e => setFormData({ ...formData, modelo: e.target.value })} />
+              onChange={e => setFormData({ ...formData, modelo: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <TextField fullWidth label="Patente *" value={formData.patente}
@@ -190,15 +221,15 @@ function VehiculosCRUD() {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Número Motor" value={formData.numeroMotor}
-              onChange={e => setFormData({ ...formData, numeroMotor: e.target.value })} />
+              onChange={e => setFormData({ ...formData, numeroMotor: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Número Chasis" value={formData.numeroChasis}
-              onChange={e => setFormData({ ...formData, numeroChasis: e.target.value })} />
+              onChange={e => setFormData({ ...formData, numeroChasis: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth label="Color" value={formData.color}
-              onChange={e => setFormData({ ...formData, color: e.target.value })} />
+              onChange={e => setFormData({ ...formData, color: e.target.value.toUpperCase() })} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <Autocomplete
@@ -300,6 +331,15 @@ function VehiculosCRUD() {
                       </Button>
                       <Button
                         size="small"
+                        color="warning"
+                        onClick={() => abrirCambiarDueno(v)}
+                        sx={{ mr: 1 }}
+                        variant="outlined"
+                      >
+                        Cambiar Dueño
+                      </Button>
+                      <Button
+                        size="small"
                         color="error"
                         onClick={() => eliminarVehiculo(v)}
                         variant="contained"
@@ -329,15 +369,15 @@ function VehiculosCRUD() {
         <DialogContent dividers>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6} md={4}>
-              <TextField fullWidth label="Nombre" value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })} />
+              <TextField fullWidth label="Nombre" value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value.toUpperCase() })} />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <TextField fullWidth label="Apellido" value={nuevoCliente.apellido} onChange={e => setNuevoCliente({ ...nuevoCliente, apellido: e.target.value })} />
+              <TextField fullWidth label="Apellido" value={nuevoCliente.apellido} onChange={e => setNuevoCliente({ ...nuevoCliente, apellido: e.target.value.toUpperCase() })} />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
               <TextField fullWidth label="RUT *" value={nuevoCliente.rut}
                 onChange={e => {
-                  const valor = e.target.value;
+                  const valor = e.target.value.toUpperCase();
                   setNuevoCliente({ ...nuevoCliente, rut: valor });
                   if (valor.length >= 2) {
                     const res = validarRut(valor);
@@ -350,19 +390,19 @@ function VehiculosCRUD() {
                 helperText={rutModalError} />
             </Grid>
             <Grid item xs={12} sm={6} md={6}>
-              <TextField fullWidth label="Dirección" value={nuevoCliente.direccion} onChange={e => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })} />
+              <TextField fullWidth label="Dirección" value={nuevoCliente.direccion} onChange={e => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value.toUpperCase() })} />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <TextField fullWidth label="Comuna" value={nuevoCliente.comuna} onChange={e => setNuevoCliente({ ...nuevoCliente, comuna: e.target.value })} />
+              <TextField fullWidth label="Comuna" value={nuevoCliente.comuna} onChange={e => setNuevoCliente({ ...nuevoCliente, comuna: e.target.value.toUpperCase() })} />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <TextField fullWidth label="Ciudad" value={nuevoCliente.ciudad} onChange={e => setNuevoCliente({ ...nuevoCliente, ciudad: e.target.value })} />
+              <TextField fullWidth label="Ciudad" value={nuevoCliente.ciudad} onChange={e => setNuevoCliente({ ...nuevoCliente, ciudad: e.target.value.toUpperCase() })} />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
-              <TextField fullWidth label="Teléfono" value={nuevoCliente.telefono} onChange={e => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })} />
+              <TextField fullWidth label="Teléfono" value={nuevoCliente.telefono} onChange={e => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value.toUpperCase() })} />
             </Grid>
             <Grid item xs={12} sm={6} md={8}>
-              <TextField fullWidth label="Email" value={nuevoCliente.email} onChange={e => setNuevoCliente({ ...nuevoCliente, email: e.target.value })} />
+              <TextField fullWidth label="Email" value={nuevoCliente.email} onChange={e => setNuevoCliente({ ...nuevoCliente, email: e.target.value.toUpperCase() })} />
             </Grid>
           </Grid>
         </DialogContent>
@@ -371,6 +411,55 @@ function VehiculosCRUD() {
           <Button onClick={guardarNuevoCliente} variant="contained" color="primary">Guardar Cliente</Button>
         </DialogActions>
       </Dialog>
+      {/* Diálogo Cambiar Dueño */}
+      <Dialog open={modalCambiarDueno.open} onClose={cerrarCambiarDueno} maxWidth="sm" fullWidth>
+        <DialogTitle>Cambiar Dueño del Vehículo</DialogTitle>
+        <DialogContent dividers>
+          {modalCambiarDueno.vehiculo && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary">Vehículo</Typography>
+              <Typography variant="subtitle1" fontWeight="bold">
+                {modalCambiarDueno.vehiculo.marca} {modalCambiarDueno.vehiculo.modelo} — {modalCambiarDueno.vehiculo.patente}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Dueño actual</Typography>
+              <Typography variant="body1">
+                {getNombreDueno(modalCambiarDueno.vehiculo.rutDueno)} ({formatearRut(modalCambiarDueno.vehiculo.rutDueno)})
+              </Typography>
+              <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 1, mb: 2 }}>
+                Las órdenes de trabajo creadas antes de este cambio conservarán el cliente original registrado.
+              </Typography>
+              <Autocomplete
+                fullWidth
+                options={clientes.filter(c => c.rut !== modalCambiarDueno.vehiculo.rutDueno)}
+                getOptionLabel={(c) => `${c.nombre} ${c.apellido} - ${formatearRut(c.rut)}`}
+                value={nuevoDueno}
+                onChange={(_, val) => setNuevoDueno(val)}
+                isOptionEqualToValue={(o, v) => o.rut === v.rut}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Nuevo Dueño"
+                    placeholder="Buscar por nombre o RUT"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                )}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cerrarCambiarDueno} color="secondary">Cancelar</Button>
+          <Button
+            onClick={confirmarCambiarDueno}
+            variant="contained"
+            color="warning"
+            disabled={!nuevoDueno}
+          >
+            Confirmar Cambio
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {notificacion}
     </Box>
   );
