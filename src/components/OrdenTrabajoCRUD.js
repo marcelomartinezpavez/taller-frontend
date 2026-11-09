@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useBlocker } from "react-router-dom";
 import api from "../services/api";
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -43,6 +44,8 @@ function OrdenTrabajoCRUD() {
 
   // Limpia formato para obtener número raw
   const parseRaw = (v) => v.replace(/\./g, "").replace(/,/g, "");
+
+  const normalizarRut = (rut) => rut ? rut.replace(/[.\-\s]/g, '').toUpperCase() : '';
 
   // Formatea fecha (dd/mm/yyyy hh:mm)
   const formatearFecha = (fechaStr) => {
@@ -165,12 +168,21 @@ function OrdenTrabajoCRUD() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const blocker = useBlocker(isDirty);
 
   // Modal para visualizar orden cerrada
   const [modalVisualizar, setModalVisualizar] = useState({
     open: false,
     orden: null
   });
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   useEffect(() => {
     cargarOrdenes();
@@ -255,13 +267,26 @@ function OrdenTrabajoCRUD() {
     
     if (editMode) {
       api.put("/ordenTrabajo/update", payload)
-        .then(() => { cargarOrdenes(); resetForm(); mostrarExito("Orden actualizada exitosamente"); })
+        .then(() => { setIsDirty(false); cargarOrdenes(); resetForm(); mostrarExito("Orden actualizada exitosamente"); })
         .catch(err => { console.error(err); mostrarError("Error al actualizar orden"); });
     } else {
       api.post("/ordenTrabajo/insert", payload)
-        .then(() => { cargarOrdenes(); resetForm(); mostrarExito("Orden creada exitosamente"); })
+        .then(() => { setIsDirty(false); cargarOrdenes(); resetForm(); mostrarExito("Orden creada exitosamente"); })
         .catch(err => { console.error(err); mostrarError("Error al crear orden"); });
     }
+  };
+
+  const cerrarOrden = () => {
+    const payload = {
+      ...formData,
+      estado: "CERRADO",
+      detalleRepuesto: formData.detalleRepuesto,
+      repuestosOrden: formData.repuestosOrden || [],
+      trabajosTerceros: formData.trabajosTerceros || []
+    };
+    api.put("/ordenTrabajo/update", payload)
+      .then(() => { setIsDirty(false); cargarOrdenes(); resetForm(); mostrarExito("Orden cerrada exitosamente"); })
+      .catch(err => { console.error(err); mostrarError("Error al cerrar orden"); });
   };
 
    const normalizarOrdenParaEdicion = (orden) => {
@@ -340,6 +365,7 @@ function OrdenTrabajoCRUD() {
       setTrabajoTerceroTemp({ descripcionTercero: "", porcentajeRecargoTercero: "", valorTercero: "", prestadorServicioTercero: "", totalTercero: "", cantidadTercero: 1 });
     }
 
+    setIsDirty(false);
     setEditMode(true);
   };
 
@@ -432,29 +458,35 @@ function OrdenTrabajoCRUD() {
     setDetalleTemp({ descripcion: "", valor: "", cantidad: 1, total: 0 });
     setRepuestoOrdenTemp({ descripcion: "", porcentajeRecargo: "", valor: "", cantidad: 1, prestadorServicio: "", total: "" });
     setTrabajoTerceroTemp({ descripcionTercero: "", porcentajeRecargoTercero: "", valorTercero: "", totalTercero: "", cantidadTercero: 1, prestadorServicioTercero: "" });
+    setIsDirty(false);
     setEditMode(false);
   };
 
   const actualizarDetalleTemp = (field, value) => {
+    setIsDirty(true);
     setDetalleTemp(prev => ({ ...prev, [field]: value }));
   };
 
   const actualizarRepuestoOrdenTemp = (field, value) => {
+    setIsDirty(true);
     setRepuestoOrdenTemp(prev => ({ ...prev, [field]: value }));
   };
 
   const actualizarTrabajoTerceroTemp = (field, value) => {
+    setIsDirty(true);
     setTrabajoTerceroTemp(prev => ({ ...prev, [field]: value }));
   };
 
   // --- Funciones de Modificación y Eliminación para Detalle Único ---
   const aplicarDetalle = () => {
+    setIsDirty(true);
     const base = Number(detalleTemp.cantidad || 1) * Number(detalleTemp.valor || 0);
     const nuevoDetalle = { ...detalleTemp, total: base };
     setFormData(prev => ({ ...prev, detalleRepuesto: nuevoDetalle }));
   };
 
   const eliminarDetalle = () => {
+    setIsDirty(true);
     setFormData(prev => ({ ...prev, detalleRepuesto: null }));
     setDetalleTemp({ descripcion: "", valor: "", cantidad: 1, total: 0 });
   };
@@ -465,6 +497,7 @@ function OrdenTrabajoCRUD() {
 
   const modificarRepuestoOrden = () => {
     if (repuestoOrdenIndex < 0 || repuestoOrdenIndex >= (formData.repuestosOrden || []).length) return;
+    setIsDirty(true);
     const base = Number(repuestoOrdenTemp.cantidad || 1) * Number(repuestoOrdenTemp.valor || 0);
     const recargo = (Number(repuestoOrdenTemp.porcentajeRecargo || 0) * base) / 100;
     const total = base + recargo;
@@ -478,6 +511,7 @@ function OrdenTrabajoCRUD() {
 
   const eliminarRepuestoOrden = () => {
     if (repuestoOrdenIndex < 0 || repuestoOrdenIndex >= (formData.repuestosOrden || []).length) return;
+    setIsDirty(true);
     setFormData(prev => {
       const lista = (prev.repuestosOrden || []).filter((_, i) => i !== repuestoOrdenIndex);
       return { ...prev, repuestosOrden: lista };
@@ -499,6 +533,7 @@ function OrdenTrabajoCRUD() {
 
   const modificarTrabajoTercero = () => {
     if (trabajoTerceroIndex < 0 || trabajoTerceroIndex >= (formData.trabajosTerceros || []).length) return;
+    setIsDirty(true);
     const base = Number(trabajoTerceroTemp.cantidadTercero || 1) * Number(trabajoTerceroTemp.valorTercero || 0);
     const recargo = (Number(trabajoTerceroTemp.porcentajeRecargoTercero || 0) * base) / 100;
     const totalTercero = base + recargo;
@@ -512,6 +547,7 @@ function OrdenTrabajoCRUD() {
 
   const eliminarTrabajoTercero = () => {
     if (trabajoTerceroIndex < 0 || trabajoTerceroIndex >= (formData.trabajosTerceros || []).length) return;
+    setIsDirty(true);
     setFormData(prev => {
       const lista = (prev.trabajosTerceros || []).filter((_, i) => i !== trabajoTerceroIndex);
       return { ...prev, trabajosTerceros: lista };
@@ -585,6 +621,7 @@ function OrdenTrabajoCRUD() {
     });
 
   const agregarRepuestoOrden = () => {
+    setIsDirty(true);
     const base = Number(repuestoOrdenTemp.cantidad || 1) * Number(repuestoOrdenTemp.valor);
     const recargo = (Number(repuestoOrdenTemp.porcentajeRecargo) * base) / 100;
     const total = base + recargo;
@@ -608,6 +645,7 @@ function OrdenTrabajoCRUD() {
   };
 
   const agregarTrabajoTercero = () => {
+    setIsDirty(true);
     const base = Number(trabajoTerceroTemp.cantidadTercero || 1) * Number(trabajoTerceroTemp.valorTercero);
     const recargo = (Number(trabajoTerceroTemp.porcentajeRecargoTercero) * base) / 100;
     const totalTercero = base + recargo;
@@ -637,7 +675,7 @@ function OrdenTrabajoCRUD() {
       <Paper sx={{ p: { xs: 2, md: 3 }, mb: 2, borderRadius: 2 }}>
         <Grid container spacing={2}>
           {/* Número Orden: oculto pero presente en el formulario (generado automáticamente) */}
-          <Grid item xs={12} sm={6} md={4} sx={{ display: 'none' }}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} sx={{ display: 'none' }}>
             <TextField
               fullWidth
               label="Número Orden"
@@ -646,7 +684,7 @@ function OrdenTrabajoCRUD() {
               disabled
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Código"
@@ -654,16 +692,25 @@ function OrdenTrabajoCRUD() {
               disabled
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <Autocomplete
               fullWidth
               options={clientes}
-              getOptionLabel={(c) => `${c.nombre} ${c.apellido} - ${formatearRut(c.rut)}`}
-              value={clientes.find(c => c.rut === formData.rutCliente) || null}
+              getOptionLabel={(c) => `${c.nombre} ${c.apellido}`}
+              renderOption={(props, c) => (
+                <li {...props} key={c.rut}>
+                  <Box>
+                    <Typography variant="body2">{c.nombre} {c.apellido}</Typography>
+                    <Typography variant="caption" color="text.secondary">{formatearRut(c.rut)}</Typography>
+                  </Box>
+                </li>
+              )}
+              value={clientes.find(c => c.rut === formData.rutCliente) || clientes.find(c => normalizarRut(c.rut) === normalizarRut(formData.rutCliente)) || null}
               onChange={(event, newValue) => {
+                setIsDirty(true);
                 setFormData({ ...formData, rutCliente: newValue ? newValue.rut : "", patenteVehiculo: "" });
               }}
-              isOptionEqualToValue={(option, value) => option.rut === value.rut}
+              isOptionEqualToValue={(option, value) => normalizarRut(option.rut) === normalizarRut(value.rut)}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -674,27 +721,27 @@ function OrdenTrabajoCRUD() {
               )}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <Autocomplete
               fullWidth
-              options={vehiculos.filter(v => v.rutDueno === formData.rutCliente)}
-              getOptionLabel={(v) => `${v.marca} ${v.modelo} - ${v.patente}`}
+              options={formData.rutCliente ? allVehiculos.filter(v => v.rutDueno === formData.rutCliente) : allVehiculos}
+              getOptionLabel={(v) => `${v.patente} - ${v.marca} ${v.modelo}`}
               value={allVehiculos.find(v => v.patente === formData.patenteVehiculo) || null}
               onChange={(event, newValue) => {
+                setIsDirty(true);
                 if (newValue) {
-                  // Siempre registrar el dueño actual del vehículo como cliente de la orden
-                  setFormData(prev => ({ ...prev, patenteVehiculo: newValue.patente, rutCliente: newValue.rutDueno }));
+                  const clienteMatch = clientes.find(c => normalizarRut(c.rut) === normalizarRut(newValue.rutDueno));
+                  setFormData(prev => ({ ...prev, patenteVehiculo: newValue.patente, rutCliente: clienteMatch ? clienteMatch.rut : (newValue.rutDueno || "") }));
                 } else {
-                  setFormData(prev => ({ ...prev, patenteVehiculo: "" }));
+                  setFormData(prev => ({ ...prev, patenteVehiculo: "", rutCliente: "" }));
                 }
               }}
               isOptionEqualToValue={(option, value) => option.patente === value.patente}
-              disabled={!formData.rutCliente}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="Vehículo"
-                  placeholder="Buscar por marca, modelo o patente"
+                  placeholder="Buscar por patente, marca o modelo"
                   InputLabelProps={{ shrink: true }}
                 />
               )}
@@ -702,19 +749,19 @@ function OrdenTrabajoCRUD() {
           </Grid>
 
           {/* Fila 2 */}
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField label="Valor OT" value={formData.valorOt !== "" ? fmt(formData.valorOt) : ""}
               InputProps={{ readOnly: true }}
               fullWidth
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <FormControl fullWidth sx={selectFieldSx}>
               <InputLabel shrink>Estado</InputLabel>
               <Select
                 value={formData.estado}
                 label="Estado"
-                onChange={e => setFormData({ ...formData, estado: e.target.value })}
+                onChange={e => { setIsDirty(true); setFormData({ ...formData, estado: e.target.value }); }}
               >
                 <MenuItem value="ABIERTA">ABIERTA</MenuItem>
                 <MenuItem value="CERRADO">CERRADO</MenuItem>
@@ -723,23 +770,23 @@ function OrdenTrabajoCRUD() {
           </Grid>
 
           {/* Fila 3 - Se mantiene kilometraje para no perder ese dato vital */}
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               label="Kilometraje actual"
               type="number"
               value={formData.kilometrajeVehiculoActual}
-              onChange={e => setFormData({ ...formData, kilometrajeVehiculoActual: e.target.value })}
+              onChange={e => { setIsDirty(true); setFormData({ ...formData, kilometrajeVehiculoActual: e.target.value }); }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <Box sx={{ px: 2, pt: 0.5 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Nivel de Combustible: {formData.nivelCombustible || 0}%
               </Typography>
               <Slider
                 value={formData.nivelCombustible || 0}
-                onChange={(e, val) => setFormData({ ...formData, nivelCombustible: val })}
+                onChange={(e, val) => { setIsDirty(true); setFormData({ ...formData, nivelCombustible: val }); }}
                 step={25}
                 marks={[
                   { value: 0, label: 'E' },
@@ -770,7 +817,7 @@ function OrdenTrabajoCRUD() {
             inputProps={{ maxLength: 4000 }}
             label="Solicitud de cliente"
             value={formData.observaciones || ""}
-            onChange={e => setFormData({ ...formData, observaciones: e.target.value.toUpperCase() })}
+            onChange={e => { setIsDirty(true); setFormData({ ...formData, observaciones: e.target.value.toUpperCase() }); }}
             helperText={`${(formData.observaciones || '').length}/4000 caracteres`}
           />
         </Box>
@@ -794,18 +841,18 @@ function OrdenTrabajoCRUD() {
           </Box>
         </Box>
         <Grid container spacing={2} sx={{ mb: 1 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Valor Unitario" value={fmtDisplay(detalleTemp.valor)}
               onChange={e => actualizarDetalleTemp("valor", parseRaw(e.target.value))} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Cantidad" type="number" value={detalleTemp.cantidad}
               onChange={e => actualizarDetalleTemp("cantidad", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Total" value={fmt(detalleTemp.total || 0)} slotProps={{ input: { readOnly: true } }} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Button fullWidth variant="contained" color="success" sx={{ height: '100%', minHeight: 56 }} onClick={aplicarDetalle}>
               {formData.detalleRepuesto ? "Actualizar Detalle" : "Asignar a Orden"}
             </Button>
@@ -831,26 +878,26 @@ function OrdenTrabajoCRUD() {
             onChange={e => actualizarRepuestoOrdenTemp("descripcion", e.target.value.toUpperCase())} />
         </Box>
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <TextField fullWidth label="Cantidad" type="number" value={repuestoOrdenTemp.cantidad}
               onChange={e => actualizarRepuestoOrdenTemp("cantidad", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <TextField fullWidth label="Valor Unit." value={fmtDisplay(repuestoOrdenTemp.valor)}
               onChange={e => actualizarRepuestoOrdenTemp("valor", parseRaw(e.target.value))} />
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <TextField fullWidth label="Recargo (%)" value={repuestoOrdenTemp.porcentajeRecargo || ""}
               onChange={e => actualizarRepuestoOrdenTemp("porcentajeRecargo", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <TextField fullWidth label="Total Item" value={fmt(repuestoOrdenTemp.total || 0)} InputProps={{ readOnly: true }} />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField fullWidth label="Prestador Servicio" value={repuestoOrdenTemp.prestadorServicio}
               onChange={e => actualizarRepuestoOrdenTemp("prestadorServicio", e.target.value.toUpperCase())} />
           </Grid>
-          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+          <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
             <Button variant="outlined" color="primary" sx={{ height: 56, minWidth: 200 }} onClick={agregarRepuestoOrden}>Agregar Nuevo</Button>
           </Grid>
         </Grid>
@@ -874,22 +921,22 @@ function OrdenTrabajoCRUD() {
             onChange={e => actualizarTrabajoTerceroTemp("descripcionTercero", e.target.value.toUpperCase())} />
         </Box>
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Recargo (%)" value={trabajoTerceroTemp.porcentajeRecargoTercero || ""}
               onChange={e => actualizarTrabajoTerceroTemp("porcentajeRecargoTercero", e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Valor" value={fmtDisplay(trabajoTerceroTemp.valorTercero)}
               onChange={e => actualizarTrabajoTerceroTemp("valorTercero", parseRaw(e.target.value))} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Total Item" value={fmt(trabajoTerceroTemp.totalTercero || 0)} InputProps={{ readOnly: true }} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Prestador Servicio" value={trabajoTerceroTemp.prestadorServicioTercero}
               onChange={e => actualizarTrabajoTerceroTemp("prestadorServicioTercero", e.target.value.toUpperCase())} />
           </Grid>
-          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+          <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
             <Button variant="outlined" color="primary" sx={{ height: 56, minWidth: 200 }} onClick={agregarTrabajoTercero}>Agregar Nuevo</Button>
           </Grid>
         </Grid>
@@ -1006,6 +1053,11 @@ function OrdenTrabajoCRUD() {
           <Button variant="contained" color="primary" onClick={guardarOrden}>
             {editMode ? "Actualizar Orden" : "Crear Orden"}
           </Button>
+          {editMode && (
+            <Button variant="contained" color="error" onClick={cerrarOrden}>
+              Cerrar Orden
+            </Button>
+          )}
           {editMode && (
             <Button variant="outlined" color="secondary" onClick={resetForm}>
               Cancelar
@@ -1157,6 +1209,25 @@ function OrdenTrabajoCRUD() {
         />
       </Paper>
       {notificacion}
+
+      {/* Dialog bloqueo de navegación con cambios no guardados */}
+      <Dialog open={blocker.state === 'blocked'} onClose={() => blocker.reset?.()}>
+        <DialogTitle>Cambios sin guardar</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Tiene cambios sin guardar en la orden de trabajo. Si sale ahora perderá todos los cambios realizados. ¿Desea continuar de todos modos?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => blocker.reset?.()}>
+            Continuar editando
+          </Button>
+          <Button variant="outlined" color="error" onClick={() => { setIsDirty(false); blocker.proceed?.(); }}>
+            Salir sin guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Modal Visualizar Orden Cerrada */}
       <Dialog
         open={modalVisualizar.open}
@@ -1189,10 +1260,6 @@ function OrdenTrabajoCRUD() {
                   <Typography variant="body2" color="text.secondary">{getMarcaModelo(modalVisualizar.orden.patenteVehiculo)}</Typography>
                 </Box>
                 <Box sx={{ flex: '1 1 200px' }}>
-                  <Typography variant="body2" color="text.secondary">Código</Typography>
-                  <Typography>{modalVisualizar.orden.codigo || '-'}</Typography>
-                </Box>
-                <Box sx={{ flex: '1 1 200px' }}>
                   <Typography variant="body2" color="text.secondary">Estado</Typography>
                   <Chip
                     label={modalVisualizar.orden.estado}
@@ -1205,11 +1272,11 @@ function OrdenTrabajoCRUD() {
               <Divider sx={{ my: 2 }} />
 
               {/* Valor y Margen */}
-              <Box sx={{ display: 'flex', gap: 4, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">
                   Valor OT: ${modalVisualizar.orden.valorOt ? fmt(modalVisualizar.orden.valorOt) : '0'}
                 </Typography>
-                <Typography variant="body1" color="success.main" sx={{ fontWeight: 'bold' }}>
+                <Typography variant="body1" color="success.main" sx={{ fontWeight: 'bold', ml: 'auto' }}>
                   Margen OT: ${fmt(calcularMargenOt(modalVisualizar.orden))}
                 </Typography>
               </Box>
@@ -1383,6 +1450,22 @@ function OrdenTrabajoCRUD() {
                     </Table>
                   );
                 })()}
+              </Box>
+
+              {/* TOTAL OT al final */}
+              <Box sx={{ mt: 3 }}>
+                <Table size="small">
+                  <TableBody>
+                    <TableRow sx={{ backgroundColor: '#2c3e50' }}>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: '#fff', fontSize: '1rem', border: 0 }}>
+                        TOTAL OT:
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: '#fff', fontSize: '1rem', border: 0, whiteSpace: 'nowrap' }}>
+                        ${fmt(modalVisualizar.orden.valorOt || 0)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </Box>
             </Box>
           )}

@@ -197,15 +197,15 @@ function VehiculosCRUD() {
 
       <Paper sx={{ p: { xs: 2, md: 3 }, mb: 2, borderRadius: 2 }}>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField fullWidth label="Marca" value={formData.marca}
               onChange={e => setFormData({ ...formData, marca: e.target.value.toUpperCase() })} />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField fullWidth label="Modelo" value={formData.modelo}
               onChange={e => setFormData({ ...formData, modelo: e.target.value.toUpperCase() })} />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField fullWidth label="Patente *" value={formData.patente}
               onChange={e => {
                 const valor = e.target.value.toUpperCase();
@@ -215,61 +215,61 @@ function VehiculosCRUD() {
               error={!!patenteError}
               helperText={patenteError} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Año" value={formData.anio}
               onChange={e => setFormData({ ...formData, anio: e.target.value })} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Número Motor" value={formData.numeroMotor}
               onChange={e => setFormData({ ...formData, numeroMotor: e.target.value.toUpperCase() })} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Número Chasis" value={formData.numeroChasis}
               onChange={e => setFormData({ ...formData, numeroChasis: e.target.value.toUpperCase() })} />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField fullWidth label="Color" value={formData.color}
               onChange={e => setFormData({ ...formData, color: e.target.value.toUpperCase() })} />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Autocomplete
-              fullWidth
-              options={clientes}
-              getOptionLabel={(cliente) => `${cliente.nombre} ${cliente.apellido} - ${formatearRut(cliente.rut)}`}
-              value={clientes.find(c => c.rut === formData.rutDueno) || null}
-              onChange={(event, newValue) => {
-                setFormData({ ...formData, rutDueno: newValue ? newValue.rut : "" });
-              }}
-              isOptionEqualToValue={(option, value) => option.rut === value.rut}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  fullWidth
-                  label="Dueño"
-                  placeholder="Buscar por nombre o RUT"
-                  InputLabelProps={{ shrink: true }}
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <React.Fragment>
-                        {params.InputProps.endAdornment}
-                        <InputAdornment position="end">
-                          <Button variant="contained" size="small" onClick={handleOpenModal} sx={{ minWidth: "30px", width: "30px", height: "30px", p: 0, borderRadius: "50%", mr: 0 }}>
-                            +
-                          </Button>
-                        </InputAdornment>
-                      </React.Fragment>
-                    ),
-                  }}
-                />
-              )}
-            />
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Autocomplete
+                fullWidth
+                options={clientes}
+                getOptionLabel={(cliente) => `${cliente.nombre} ${cliente.apellido}`}
+                renderOption={(props, cliente) => (
+                  <li {...props} key={cliente.rut}>
+                    <Box>
+                      <Typography variant="body2">{cliente.nombre} {cliente.apellido}</Typography>
+                      <Typography variant="caption" color="text.secondary">{formatearRut(cliente.rut)}</Typography>
+                    </Box>
+                  </li>
+                )}
+                value={clientes.find(c => c.rut === formData.rutDueno) || null}
+                onChange={(event, newValue) => {
+                  setFormData({ ...formData, rutDueno: newValue ? newValue.rut : "" });
+                }}
+                isOptionEqualToValue={(option, value) => option.rut === value.rut}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    label="Dueño"
+                    placeholder="Buscar por nombre o RUT"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                )}
+              />
+              <Button variant="contained" size="small" onClick={handleOpenModal} sx={{ minWidth: "36px", width: "36px", height: "36px", p: 0, borderRadius: "50%", flexShrink: 0 }}>
+                +
+              </Button>
+            </Box>
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField fullWidth label="Kilometraje" value={formData.kilometraje}
               onChange={e => setFormData({ ...formData, kilometraje: e.target.value })} />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
               <Button variant="contained" color="primary" onClick={guardarVehiculo}>
                 {editMode ? "Actualizar Vehículo" : "Crear Vehículo"}
@@ -368,13 +368,13 @@ function VehiculosCRUD() {
         <DialogTitle>Agregar Nuevo Cliente</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField fullWidth label="Nombre" value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value.toUpperCase() })} />
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField fullWidth label="Apellido" value={nuevoCliente.apellido} onChange={e => setNuevoCliente({ ...nuevoCliente, apellido: e.target.value.toUpperCase() })} />
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField fullWidth label="RUT *" value={nuevoCliente.rut}
                 onChange={e => {
                   const valor = e.target.value.toUpperCase();
@@ -389,19 +389,19 @@ function VehiculosCRUD() {
                 error={!!rutModalError}
                 helperText={rutModalError} />
             </Grid>
-            <Grid item xs={12} sm={6} md={6}>
+            <Grid size={{ xs: 12, sm: 6, md: 6 }}>
               <TextField fullWidth label="Dirección" value={nuevoCliente.direccion} onChange={e => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value.toUpperCase() })} />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField fullWidth label="Comuna" value={nuevoCliente.comuna} onChange={e => setNuevoCliente({ ...nuevoCliente, comuna: e.target.value.toUpperCase() })} />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField fullWidth label="Ciudad" value={nuevoCliente.ciudad} onChange={e => setNuevoCliente({ ...nuevoCliente, ciudad: e.target.value.toUpperCase() })} />
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField fullWidth label="Teléfono" value={nuevoCliente.telefono} onChange={e => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value.toUpperCase() })} />
             </Grid>
-            <Grid item xs={12} sm={6} md={8}>
+            <Grid size={{ xs: 12, sm: 6, md: 8 }}>
               <TextField fullWidth label="Email" value={nuevoCliente.email} onChange={e => setNuevoCliente({ ...nuevoCliente, email: e.target.value.toUpperCase() })} />
             </Grid>
           </Grid>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Outlet, Link, Navigate, useLocation } from "react-router-dom";
 import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon, createTheme, ThemeProvider } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -62,14 +62,13 @@ const menuItems = [
 const ProtectedRoute = ({ children }) => {
   const user = localStorage.getItem("user");
   const location = useLocation();
-
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return children;
 };
 
-function AppRoutes() {
+function Layout() {
   const location = useLocation();
   const isLoginPage = location.pathname === "/login";
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -139,7 +138,7 @@ function AppRoutes() {
           </Toolbar>
         </AppBar>
       )}
-      
+
       <Box component="nav" sx={{ width: { md: 240 }, flexShrink: { md: 0 } }}>
         <Drawer
           variant="temporary"
@@ -152,28 +151,34 @@ function AppRoutes() {
         </Drawer>
       </Box>
 
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/clientes" element={<ProtectedRoute><ClientesCRUD /></ProtectedRoute>} />
-        <Route path="/vehiculos" element={<ProtectedRoute><VehiculosCRUD /></ProtectedRoute>} />
-        <Route path="/proveedores" element={<ProtectedRoute><ProveedorCRUD /></ProtectedRoute>} />
-        <Route path="/ordenes" element={<ProtectedRoute><OrdenTrabajoCRUD /></ProtectedRoute>} />
-        <Route path="/repuestos" element={<ProtectedRoute><RepuestosCRUD /></ProtectedRoute>} />
-        <Route path="/agenda" element={<ProtectedRoute><AgendaCRUD /></ProtectedRoute>} />
-        <Route path="/reportes" element={<ProtectedRoute><ReportesReparaciones /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Outlet />
     </>
   );
 }
 
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { path: "login", element: <Login /> },
+      { index: true, element: <ProtectedRoute><Dashboard /></ProtectedRoute> },
+      { path: "clientes", element: <ProtectedRoute><ClientesCRUD /></ProtectedRoute> },
+      { path: "vehiculos", element: <ProtectedRoute><VehiculosCRUD /></ProtectedRoute> },
+      { path: "proveedores", element: <ProtectedRoute><ProveedorCRUD /></ProtectedRoute> },
+      { path: "ordenes", element: <ProtectedRoute><OrdenTrabajoCRUD /></ProtectedRoute> },
+      { path: "repuestos", element: <ProtectedRoute><RepuestosCRUD /></ProtectedRoute> },
+      { path: "agenda", element: <ProtectedRoute><AgendaCRUD /></ProtectedRoute> },
+      { path: "reportes", element: <ProtectedRoute><ReportesReparaciones /></ProtectedRoute> },
+      { path: "*", element: <Navigate to="/login" replace /> },
+    ],
+  },
+]);
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <RouterProvider router={router} />
     </ThemeProvider>
   );
 }

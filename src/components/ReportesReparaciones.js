@@ -259,45 +259,107 @@ const dibujarGaugeCombustible = (doc, cx, cy, r, nivel) => {
   doc.setLineWidth(0.2);
 };
 
+const encabezadoPDF = (doc, ot, mostrarMargen) => {
+  const tblMargin = { left: 14, right: 14 };
+  const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
+  const km = ot.kilometrajeVehiculoActual ? `${fmtPDF(ot.kilometrajeVehiculoActual)} km` : '-';
+
+  // Título y fecha
+  doc.setFontSize(16);
+  doc.setFont(undefined, 'bold');
+  doc.text("Reporte Orden de Trabajo", 14, 18);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Fecha Creación: ${formatearFecha(ot.fechaIngreso)}`, 14, 25);
+
+  // Línea separadora bajo el título
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.line(14, 28, 196, 28);
+
+  // Bloque de datos en 3 columnas: info orden | datos cliente | datos vehículo
+  const colX = [14, 75, 135];
+  const startY = 33;
+  const lineH = 6;
+
+  // Encabezados de sección (negrita)
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'bold');
+  doc.text("DATOS DE OT", colX[0], startY);
+  doc.text("DATOS DEL CLIENTE", colX[1], startY);
+  doc.text("DATOS DEL VEHÍCULO", colX[2], startY);
+  doc.setFont(undefined, 'normal');
+
+  // Columna izquierda: datos de la orden
+  doc.setFontSize(10);
+  doc.text(`Número Orden: ${ot.numeroOrden}`, colX[0], startY + lineH);
+  doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, colX[0], startY + lineH * 2);
+  if (mostrarMargen) {
+    const margen = calcularMargenOt(ot);
+    doc.setTextColor(0, 100, 0);
+    doc.text(`Margen OT: $${fmtPDF(margen)}`, colX[0], startY + lineH * 3);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Estado: ${ot.estado}`, colX[0], startY + lineH * 4);
+  } else {
+    doc.text(`Estado: ${ot.estado}`, colX[0], startY + lineH * 3);
+  }
+
+  // Columna central: datos del cliente
+  doc.text(`RUT: ${formatearRut(ot.rutCliente)}`, colX[1], startY + lineH);
+  doc.setFont(undefined, 'bold');
+  doc.text(getNombreCliente(ot.rutCliente), colX[1], startY + lineH * 2);
+  doc.setFont(undefined, 'normal');
+
+  // Columna derecha: datos del vehículo
+  doc.text(`Patente: ${ot.patenteVehiculo}`, colX[2], startY + lineH);
+  doc.setFont(undefined, 'bold');
+  doc.text(getMarcaModelo(ot.patenteVehiculo), colX[2], startY + lineH * 2);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Km: ${km}`, colX[2], startY + lineH * 3);
+
+  // Gauge de combustible alineado con el título
+  dibujarGaugeCombustible(doc, 186, 22, 10, nivelCombustible);
+
+  // Línea separadora bajo el encabezado
+  const headerEndY = startY + lineH * (mostrarMargen ? 5 : 4) + 2;
+  doc.setDrawColor(180, 180, 180);
+  doc.line(14, headerEndY, 196, headerEndY);
+
+  return { tblMargin, headerEndY };
+};
+
+const totalOTPDF = (doc, ot) => {
+  const tblMargin = { left: 14, right: 14 };
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 5,
+    body: [[
+      { content: 'TOTAL OT:', styles: { halign: 'right', fontStyle: 'bold', fillColor: [44, 62, 80], textColor: [255, 255, 255], fontSize: 12 } },
+      { content: `$${fmtPDF(ot.valorOt)}`, styles: { halign: 'right', fontStyle: 'bold', fillColor: [44, 62, 80], textColor: [255, 255, 255], fontSize: 12 } }
+    ]],
+    margin: tblMargin,
+    styles: { cellPadding: 4 },
+    columnStyles: {
+      0: { cellWidth: 154 },
+      1: { cellWidth: 28 }
+    },
+    theme: 'plain'
+  });
+};
+
 const generarPDFInterno = (ot) => {
   const doc = new jsPDF();
   const { detalleRepuestos, repuestos, trabajosTerceros } = obtenerSeccionesOrden(ot);
-
-  doc.setFontSize(16);
-  doc.text("Reporte Orden de Trabajo", 14, 20);
-  doc.setFontSize(12);
-  doc.text(`Fecha Creación: ${formatearFecha(ot.fechaIngreso)}`, 14, 30);
-
-  // Fila 1
-  doc.text(`Número Orden: ${ot.numeroOrden}`, 14, 40);
-  doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 40);
-  doc.text(`Vehículo: ${ot.patenteVehiculo}`, 130, 40);
-
-  // Fila 1b - Nombre y Marca/Modelo
-  doc.setFontSize(10);
-  doc.text(`${getNombreCliente(ot.rutCliente)}`, 75, 47);
-  doc.text(`${getMarcaModelo(ot.patenteVehiculo)}`, 130, 47);
-  doc.setFontSize(12);
-
-  // Fila 2
-  doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 55);
-  const margenOt = calcularMargenOt(ot);
-  doc.setTextColor(0, 100, 0);
-  doc.text(`Margen OT: $${fmtPDF(margenOt)}`, 75, 55);
-  doc.setTextColor(0, 0, 0);
-  doc.text(`Estado: ${ot.estado}`, 130, 55);
-  // Gauge gráfico de combustible (esquina derecha del encabezado)
-  const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
-  dibujarGaugeCombustible(doc, 183, 40, 11, nivelCombustible);
+  const { tblMargin, headerEndY } = encabezadoPDF(doc, ot, true);
+  const tblStyles = { overflow: 'linebreak', cellPadding: 3, fontSize: 10 };
 
   // Observaciones
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   const obsText = `Observaciones: ${ot.observaciones || "-"}`;
-  const obsLines = doc.splitTextToSize(obsText, 160);
-  doc.text(obsLines, 14, 65);
+  const obsLines = doc.splitTextToSize(obsText, 165);
+  doc.text(obsLines, 14, headerEndY + 7);
+  const startY = headerEndY + 7 + (obsLines.length * 5.5) + 5;
 
-  const startYRepuestos = 65 + (obsLines.length * 6) + 5;
-
+  // Trabajos realizados
   const detalles = detalleRepuestos.map(d => [
     stripHtml(d.descripcion),
     fmtPDF(d.valor || 0),
@@ -305,19 +367,18 @@ const generarPDFInterno = (ot) => {
     (d.porcentajeRecargo ? d.porcentajeRecargo + "%" : "0%"),
     `$${fmtPDF(d.total || 0)}`
   ]);
-  const totalRepuestos = detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0);
+  const totalManoObra = detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0);
   detalles.push([
     { content: "Total Mano de obra:", colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
-    { content: `$${fmtPDF(totalRepuestos)}`, styles: { fontStyle: 'bold' } }
+    { content: `$${fmtPDF(totalManoObra)}`, styles: { fontStyle: 'bold' } }
   ]);
 
-  const tblMargin = { left: 14, right: 14 };
-  const tblStyles = { overflow: 'linebreak', cellPadding: 3, fontSize: 10 };
-
-  doc.setFontSize(13);
-  doc.text("Trabajos Realizados", 14, startYRepuestos);
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text("Trabajos Realizados", 14, startY);
+  doc.setFont(undefined, 'normal');
   autoTable(doc, {
-    startY: startYRepuestos + 5,
+    startY: startY + 4,
     head: [["Descripción", "Valor", "Cantidad", "Recargo (%)", "Total"]],
     body: detalles,
     margin: tblMargin,
@@ -331,6 +392,7 @@ const generarPDFInterno = (ot) => {
     }
   });
 
+  // Repuestos
   const rep = repuestos.map(r => [
     r.descripcion || r.descripcionGeneral || "",
     fmtPDF(r.valor || r.valorGeneral || 0),
@@ -343,10 +405,12 @@ const generarPDFInterno = (ot) => {
     { content: `$${fmtPDF(totalRep)}`, styles: { halign: 'right', fontStyle: 'bold' } }
   ]);
 
-  doc.setFontSize(13);
-  doc.text("Repuestos", 14, doc.lastAutoTable.finalY + 10);
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text("Repuestos", 14, doc.lastAutoTable.finalY + 9);
+  doc.setFont(undefined, 'normal');
   autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 15,
+    startY: doc.lastAutoTable.finalY + 13,
     head: [["Descripción", "Valor", "Recargo (%)", "Total"]],
     body: rep,
     margin: tblMargin,
@@ -359,6 +423,7 @@ const generarPDFInterno = (ot) => {
     }
   });
 
+  // Trabajos Terceros
   const terceros = trabajosTerceros.map(tt => [
     tt.descripcionTercero || tt.descripcion || "",
     fmtPDF(tt.valorTercero || tt.valor || 0),
@@ -371,10 +436,12 @@ const generarPDFInterno = (ot) => {
     { content: `$${fmtPDF(totalTerceros)}`, styles: { halign: 'right', fontStyle: 'bold' } }
   ]);
 
-  doc.setFontSize(13);
-  doc.text("Trabajos Terceros", 14, doc.lastAutoTable.finalY + 10);
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text("Trabajos Terceros", 14, doc.lastAutoTable.finalY + 9);
+  doc.setFont(undefined, 'normal');
   autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 15,
+    startY: doc.lastAutoTable.finalY + 13,
     head: [["Descripción", "Valor", "Recargo (%)", "Total"]],
     body: terceros,
     margin: tblMargin,
@@ -387,62 +454,41 @@ const generarPDFInterno = (ot) => {
     }
   });
 
+  totalOTPDF(doc, ot);
   doc.save(`OrdenTrabajo_Interna_${ot.numeroOrden}.pdf`);
 };
 
   const generarPDF = (ot) => {
     const doc = new jsPDF();
     const { detalleRepuestos, repuestos, trabajosTerceros } = obtenerSeccionesOrden(ot);
-
-    doc.setFontSize(16);
-    doc.text("Reporte Orden de Trabajo", 14, 20);
-    doc.setFontSize(12);
-    doc.text(`Fecha Creación: ${formatearFecha(ot.fechaIngreso)}`, 14, 30);
-
-    // Fila 1
-    doc.text(`Número Orden: ${ot.numeroOrden}`, 14, 40);
-    doc.text(`Cliente: ${formatearRut(ot.rutCliente)}`, 75, 40);
-    doc.text(`Vehículo: ${ot.patenteVehiculo}`, 130, 40);
-
-    // Fila 1b - Nombre y Marca/Modelo
-    doc.setFontSize(10);
-    doc.text(`${getNombreCliente(ot.rutCliente)}`, 75, 47);
-    doc.text(`${getMarcaModelo(ot.patenteVehiculo)}`, 130, 47);
-    doc.setFontSize(12);
-
-    // Fila 2
-    doc.text(`Valor OT: $${fmtPDF(ot.valorOt)}`, 14, 55);
-    doc.text(`Estado: ${ot.estado}`, 75, 55);
-    // Gauge gráfico de combustible (esquina derecha del encabezado)
-    const nivelCombustible = ot.nivelCombustible ?? ot.nivel_combustible ?? 0;
-    dibujarGaugeCombustible(doc, 183, 40, 11, nivelCombustible);
+    const { tblMargin, headerEndY } = encabezadoPDF(doc, ot, false);
+    const tblStyles = { overflow: 'linebreak', cellPadding: 3, fontSize: 10 };
 
     // Observaciones
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     const obsText = `Observaciones: ${ot.observaciones || "-"}`;
-    const obsLines = doc.splitTextToSize(obsText, 160);
-    doc.text(obsLines, 14, 65);
+    const obsLines = doc.splitTextToSize(obsText, 165);
+    doc.text(obsLines, 14, headerEndY + 7);
+    const startY = headerEndY + 7 + (obsLines.length * 5.5) + 5;
 
-    const startYRepuestos = 65 + (obsLines.length * 6) + 5;
-
+    // Trabajos realizados
     const detalles = detalleRepuestos.map(d => [
       stripHtml(d.descripcion),
       d.cantidad || 1,
       `$${fmtPDF(d.total || 0)}`
     ]);
-    const totalRepuestos = detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0);
+    const totalManoObra = detalleRepuestos.reduce((acc, d) => acc + Number(d.total || 0), 0);
     detalles.push([
       { content: "Total Mano de obra:", colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-      { content: `$${fmtPDF(totalRepuestos)}`, styles: { fontStyle: 'bold' } }
+      { content: `$${fmtPDF(totalManoObra)}`, styles: { fontStyle: 'bold' } }
     ]);
 
-    const tblMargin = { left: 14, right: 14 };
-    const tblStyles = { overflow: 'linebreak', cellPadding: 3, fontSize: 10 };
-
-    doc.setFontSize(13);
-    doc.text("Trabajos Realizados", 14, startYRepuestos);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text("Trabajos Realizados", 14, startY);
+    doc.setFont(undefined, 'normal');
     autoTable(doc, {
-      startY: startYRepuestos + 5,
+      startY: startY + 4,
       head: [["Descripción", "Cantidad", "Total"]],
       body: detalles,
       margin: tblMargin,
@@ -454,20 +500,23 @@ const generarPDFInterno = (ot) => {
       }
     });
 
+    // Repuestos
     const rep = repuestos.map(r => [
       r.descripcion || "",
       `$${fmtPDF(r.total || 0)}`
     ]);
     const totalRep = repuestos.reduce((acc, r) => acc + Number(r.total || 0), 0);
     rep.push([
-      { content: "Total Repuestos:", colSpan: 1, styles: { halign: 'right', fontStyle: 'bold' } },
+      { content: "Total Repuestos:", styles: { halign: 'right', fontStyle: 'bold' } },
       { content: `$${fmtPDF(totalRep)}`, styles: { halign: 'right', fontStyle: 'bold' } }
     ]);
 
-    doc.setFontSize(13);
-    doc.text("Repuestos", 14, doc.lastAutoTable.finalY + 10);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text("Repuestos", 14, doc.lastAutoTable.finalY + 9);
+    doc.setFont(undefined, 'normal');
     autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 15,
+      startY: doc.lastAutoTable.finalY + 13,
       head: [["Descripción", "Total"]],
       body: rep,
       margin: tblMargin,
@@ -478,20 +527,23 @@ const generarPDFInterno = (ot) => {
       }
     });
 
+    // Trabajos Terceros
     const terceros = trabajosTerceros.map(tt => [
       tt.descripcionTercero || tt.descripcion || "",
       `$${fmtPDF(tt.total || tt.totalTercero || 0)}`
     ]);
     const totalTerceros = trabajosTerceros.reduce((acc, tt) => acc + Number(tt.total || tt.totalTercero || 0), 0);
     terceros.push([
-      { content: "Total Trabajos Terceros:", colSpan: 1, styles: { halign: 'right', fontStyle: 'bold' } },
+      { content: "Total Trabajos Terceros:", styles: { halign: 'right', fontStyle: 'bold' } },
       { content: `$${fmtPDF(totalTerceros)}`, styles: { halign: 'right', fontStyle: 'bold' } }
     ]);
 
-    doc.setFontSize(13);
-    doc.text("Trabajos Terceros", 14, doc.lastAutoTable.finalY + 10);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text("Trabajos Terceros", 14, doc.lastAutoTable.finalY + 9);
+    doc.setFont(undefined, 'normal');
     autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 15,
+      startY: doc.lastAutoTable.finalY + 13,
       head: [["Descripción", "Total"]],
       body: terceros,
       margin: tblMargin,
@@ -502,6 +554,7 @@ const generarPDFInterno = (ot) => {
       }
     });
 
+    totalOTPDF(doc, ot);
     doc.save(`OrdenTrabajo_${ot.numeroOrden}.pdf`);
   };
 

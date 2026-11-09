@@ -38,6 +38,7 @@ function Login() {
             value={users}
             onChange={(e) => setUsers(e.target.value)}
             required
+            inputProps={{ style: { textTransform: 'none' } }}
           />
           <TextField
             fullWidth
@@ -47,6 +48,7 @@ function Login() {
             value={pass}
             onChange={(e) => setPass(e.target.value)}
             required
+            inputProps={{ style: { textTransform: 'none' } }}
           />
           <Button 
             type="submit" 
